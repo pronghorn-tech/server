@@ -1,0 +1,23 @@
+mainClassName = 'com.currentdb.runnable.MainKt'
+
+dependencies {
+    compile 'net.openhft:affinity:3.0.6'
+    compile 'ch.qos.logback:logback-classic:1.1.7'
+    compile 'com.graphql-java:graphql-java:2.4.0'
+    compile 'org.jctools:jctools-core:2.0.1'
+    compile 'io.github.microutils:kotlin-logging:1.4.1'
+    compile 'net.bramp.unsafe:unsafe-collection:1.0'
+    compile 'org.apache.commons:commons-math3:3.6.1'
+    compile 'com.google.guava:guava:21.0'
+    compile 'net.openhft:zero-allocation-hashing:0.8'
+    compile 'com.jsoniter:jsoniter:0.9.15'
+    compile 'it.unimi.dsi:fastutil:8.1.0'
+}
+
+//dokka {
+//    moduleName = 'com.currentdb.websocket'
+//    outputFormat = 'javadoc'
+//    outputDirectory = "$buildDir/javadoc"
+//    processConfigurations = ['compile']
+//    sourceDirs = files('src/main/kotlin')
+//}
