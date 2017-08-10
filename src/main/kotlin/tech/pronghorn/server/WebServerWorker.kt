@@ -4,20 +4,20 @@ import mu.KotlinLogging
 import org.jctools.maps.NonBlockingHashSet
 import tech.pronghorn.coroutines.core.CoroutineWorker
 import tech.pronghorn.coroutines.service.Service
-import tech.pronghorn.util.runAllIgnoringExceptions
 import tech.pronghorn.server.bufferpools.ConnectionBufferPool
 import tech.pronghorn.server.bufferpools.HandshakeBufferPool
 import tech.pronghorn.server.config.WebServerConfig
 import tech.pronghorn.server.config.WebsocketClientConfig
 import tech.pronghorn.server.core.HttpRequestHandler
 import tech.pronghorn.server.services.*
+import tech.pronghorn.util.runAllIgnoringExceptions
 import java.nio.channels.SelectionKey
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
-abstract class WebWorker : CoroutineWorker() {
-//    protected val pendingConnections = NonBlockingHashSet<HttpConnection>()
+sealed class WebWorker : CoroutineWorker() {
+    //    protected val pendingConnections = NonBlockingHashSet<HttpConnection>()
     protected val allConnections = NonBlockingHashSet<HttpConnection>()
 
     val handshakeBufferPool = HandshakeBufferPool()
@@ -58,7 +58,7 @@ abstract class WebWorker : CoroutineWorker() {
         runAllIgnoringExceptions({ allConnections.forEach({ it.close("Server is shutting down.") }) })
     }
 
-//    protected val handshakeTimeoutService = HandshakeTimeoutService(this, pendingConnections, handshakeTimeout)
+    //    protected val handshakeTimeoutService = HandshakeTimeoutService(this, pendingConnections, handshakeTimeout)
 //    protected val frameHandlerService = FrameHandlerService(this, frameHandler)
     protected val handshakeService = HandshakeService(this)
     protected val connectionReadService = ConnectionReadService(this)
@@ -72,10 +72,10 @@ abstract class WebWorker : CoroutineWorker() {
     }
 
     protected val commonServices = listOf(
-        handshakeService,
-//        handshakeTimeoutService,
+            handshakeService,
+            //        handshakeTimeoutService,
 //        frameHandlerService,
-        connectionReadService
+            connectionReadService
     )
 
     private var dateCache = ByteArray(0)
@@ -92,43 +92,10 @@ abstract class WebWorker : CoroutineWorker() {
             return dateCache
         }
     }
-
-    override fun processKey(key: SelectionKey): Unit {
-        val attachment = key.attachment()
-        when (attachment) {
-            is HttpConnection -> {
-                if (key.isReadable) {
-                    /*if (!attachment.isHandshakeComplete) {
-                        // Handshakes must be completed first
-                        if (!handshakeServiceQueueWriter.offer(attachment)) {
-                            // TODO: handle this properly
-                            throw Exception("HandshakeService full!")
-                        }
-                        attachment.updateInterestOps(0)
-                    }
-                    else {*/
-                        // Connections that have completed their handshake are forwarded to the ConnectionReadService
-                        if (!connectionReadServiceQueueWriter.offer(attachment)) {
-                            // TODO: handle this properly
-                            throw Exception("ConnectionReadService full!")
-                        }
-                        attachment.removeInterestOps(SelectionKey.OP_READ)
-//                    }
-                }
-                else {
-                    throw Exception("Unexpected selection op.")
-                }
-            }
-            else -> {
-                throw Exception("Unexpected selection selectionKey attachment : $attachment")
-            }
-        }
-    }
 }
 
 class WebClientWorker(config: WebsocketClientConfig) : WebWorker() {
     override val logger = KotlinLogging.logger {}
-
     private val connectionCreationService = ClientConnectionCreationService(this, selector, config.randomGeneratorBuilder())
     private val connectionFinisherService = WebsocketConnectionFinisherService(this, selector, config.randomGeneratorBuilder())
     private val connectionFinisherWriter by lazy {
@@ -140,34 +107,34 @@ class WebClientWorker(config: WebsocketClientConfig) : WebWorker() {
             connectionFinisherService
     ).plus(commonServices)
 
-    override fun processKey(key: SelectionKey): Unit {
-        var handled = false
-        val attachment = key.attachment()
-        when (attachment) {
-            is HttpClientConnection -> {
-                if(key.isConnectable) {
-                    handled = true
-                    if (!connectionFinisherWriter.offer(attachment)) {
-                        // TODO: handle this properly
-                        throw Exception("HandshakeService full!")
-                    }
-                    key.interestOps(0)
-                }
-            }
-        }
 
-        if(!handled){
-            super.processKey(key)
+    override fun processKey(key: SelectionKey): Unit {
+        val attachment = key.attachment()
+        when {
+            key.isReadable && attachment is HttpClientConnection -> {
+                if (!connectionReadServiceQueueWriter.offer(attachment)) {
+                    // TODO: handle this properly
+                    throw Exception("ConnectionReadService full!")
+                }
+                attachment.removeInterestOps(SelectionKey.OP_READ)
+            }
+            key.isConnectable && attachment is HttpClientConnection -> {
+                if (!connectionFinisherWriter.offer(attachment)) {
+                    // TODO: handle this properly
+                    throw Exception("HandshakeService full!")
+                }
+                key.interestOps(0)
+            }
+            else -> throw Exception("Unexpected selection op.")
         }
     }
 }
 
-
-
-class WebServerWorker(config: WebServerConfig,
+class WebServerWorker(private val server: WebServer,
+                      private val config: WebServerConfig,
                       handler: HttpRequestHandler) : WebWorker() {
     override val logger = KotlinLogging.logger {}
-
+    private val serverKey = server.registerAcceptWorker(selector)
     private val connectionCreationService = ServerConnectionCreationService(this, selector)
     private val httpRequestHandlerService = HttpRequestHandlerService(this, handler)
     private val responseWriterService = ResponseWriterService(this)
@@ -177,4 +144,22 @@ class WebServerWorker(config: WebServerConfig,
             httpRequestHandlerService,
             responseWriterService
     ).plus(commonServices)
+
+    override fun processKey(key: SelectionKey): Unit {
+        if (key == serverKey && key.isAcceptable){
+            server.attemptAccept()
+        }
+        else if (key.isReadable) {
+            val attachment = key.attachment()
+            if (attachment is HttpServerConnection) {
+                if (!connectionReadServiceQueueWriter.offer(attachment)) {
+                    // TODO: handle this properly
+                    throw Exception("ConnectionReadService full!")
+                }
+                attachment.removeInterestOps(SelectionKey.OP_READ)
+            }
+        } else {
+            throw Exception("Unexpected readyOps for attachment : ${key.readyOps()} ${key.attachment()}")
+        }
+    }
 }

@@ -16,10 +16,12 @@ import tech.pronghorn.stats.StatTracker
 import tech.pronghorn.test.CDBTest
 import tech.pronghorn.server.HttpConnection
 import tech.pronghorn.server.WebServer
+import tech.pronghorn.server.WebServerWorker
 import tech.pronghorn.server.WebWorker
 import tech.pronghorn.server.config.WebServerConfig
 import tech.pronghorn.server.core.HttpRequestHandler
 import java.net.InetSocketAddress
+import java.net.SocketOptions
 import java.nio.ByteBuffer
 import java.nio.channels.SelectionKey
 import java.nio.channels.Selector
@@ -77,9 +79,9 @@ class FakeHttpConnection(fakeWorker: WebWorker,
 }
 
 class HttpServerTests : CDBTest() {
-//    val host = "10.0.1.2"
-    val host = "localhost"
-    val port = 5432
+    val host = "10.0.1.2"
+//    val host = "localhost"
+    val port = 2648
     val address = InetSocketAddress(host, port)
 
     /*
@@ -88,9 +90,9 @@ class HttpServerTests : CDBTest() {
     @Test
     fun serversHandleRequests() {
         repeat(256) {
-            val serverThreadCount = 1
+            val serverThreadCount = 4
             val clientThreadCount = 2
-            val channelCount = 32
+            val channelCount = 16384
 
 //                val batchSize = 256
 //                val batchCount = 128 * 16
@@ -104,29 +106,53 @@ class HttpServerTests : CDBTest() {
             val server = WebServer(serverConfig, counterHandlers.first())
             server.start()
 
-//            Thread.sleep(10000000)
+            Thread.sleep(10000000)
 
             val channels = mutableListOf<SocketChannel>()
             try {
                 eventually { assertTrue(server.isRunning) }
 
+                val pre = System.currentTimeMillis()
                 for (c in 1..channelCount) {
+//                    while(c > channels.count(SocketChannel::isConnected) + 64){
+                        // no-op
+//                    }
+                    while(c > server.getConnectionCount() + 64){
+                        // no-op
+                    }
+
+                    val preA = System.currentTimeMillis()
                     val channel = SocketChannel.open(address)
-                    channel.socket().keepAlive = true
+                    val postA = System.currentTimeMillis()
+                    if (postA - preA > 1) {
+//                        logger.error("Took ${postA - preA} ms to open.")
+                    }
+
+//                    channel.socket().tcpNoDelay = true
+
+                    if(!channel.isConnected || channel.isConnectionPending){
+                        TODO()
+                    }
+//                    val channel = SocketChannel.open()
+//                    channel.configureBlocking(false)
+//                    channel.socket().keepAlive = false
+//                    channel.connect(address)
+//                    channel.register(clientSelector, SelectionKey.OP_CONNECT)
                     channels.add(channel)
                 }
-                eventually(Duration.ofSeconds(5)) { assertEquals(channelCount, server.getConnectionCount()) }
 
-                val fakeWorker = object : WebWorker() {
-                    override val logger = KotlinLogging.logger {}
-                    override val services: List<Service> = emptyList()
-                    override fun processKey(key: SelectionKey) = Unit
+                val postConnect = System.currentTimeMillis()
+                logger.info("Took ${postConnect - pre} ms to queue connections")
+
+                var finishedConnecting = 0
+
+                eventually(Duration.ofSeconds(10)) {
+                    assertEquals(channelCount, channels.count { channel -> channel.isConnected })
+                    assertEquals(channelCount, server.getConnectionCount())
                 }
-                val fakeSocket = SocketChannel.open()
-                fakeSocket.configureBlocking(false)
-                val fakeSelector = Selector.open()
-                val fakeKey = fakeSocket.register(fakeSelector, SelectionKey.OP_READ)
-                val fakeConnection = FakeConnection(fakeWorker, fakeSocket, fakeKey)
+
+                val post = System.currentTimeMillis()
+                println("Took ${post - pre} ms to accept $channelCount connections")
 
                 val requestBytes = "GET /plaintext HTTP/1.1\r\nHost: server\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) Gecko/20130501 Firefox/30.0 AppleWebKit/600.00 Chrome/30.0.0000.0 Trident/10.0 Safari/600.00\r\nCookie: uid=12345678901234567890; __utma=1.1234567890.1234567890.1234567890.1234567890.12; wd=2560x1600\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nAccept-Language: en-US,en;q=0.5\r\nConnection: keep-alive\r\n\r\n".toByteArray(Charsets.US_ASCII)
 //                val requestBytes = "GET /plaintext HTTP/1.1\r\nHost: server\r\nUser-Agent: Mozilla/5.0\r\nCookie: uid=12345678901234567890\r\nAccept: text/html\r\nAccept-Language: en-US,en\r\nConnection: keep-alive\r\n\r\n".toByteArray(Charsets.US_ASCII)
@@ -182,14 +208,6 @@ class HttpServerTests : CDBTest() {
 
                 Thread.sleep(100)
 
-                fakeWorker.shutdown()
-                fakeSelector.close()
-                fakeSocket.close()
-                try {
-                    fakeConnection.close("done")
-                } catch (ex: AssertionError) {
-                    // ignore
-                }
                 counterHandlers.map { handler ->
                     println("End to end latency: min ${handler.stats.minMillis()} avg ${handler.stats.meanMillis()}")
 //                        handler.stats.printHistogram()
@@ -202,6 +220,7 @@ class HttpServerTests : CDBTest() {
             } finally {
                 server.shutdown()
                 channels.forEach { it.close() }
+                Thread.sleep(100)
             }
         }
     }

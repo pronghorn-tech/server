@@ -1,4 +1,4 @@
-mainClassName = 'com.currentdb.runnable.MainKt'
+mainClassName = 'tech.pronghorn.runnable.MainKt'
 
 dependencies {
     compile 'net.openhft:affinity:3.0.6'
@@ -12,6 +12,7 @@ dependencies {
     compile 'net.openhft:zero-allocation-hashing:0.8'
     compile 'com.jsoniter:jsoniter:0.9.15'
     compile 'it.unimi.dsi:fastutil:8.1.0'
+    compile 'io.undertow:undertow-core:1.4.12.Final'
 }
 
 //dokka {
