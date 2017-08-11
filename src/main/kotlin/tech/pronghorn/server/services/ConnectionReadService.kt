@@ -63,11 +63,11 @@ class ConnectionReadService(override val worker: WebWorker) : InternalQueueServi
                 connection.close("Disconnected.")
                 return true
             }
-            logger.debug("Read $bytesRead bytes into buffer from connection.")
+            logger.debug { "Read $bytesRead bytes into buffer from connection." }
             requestsParsed = connection.parseRequests(maxFramesParsed - totalRequestsParsed)
         }
 
-        logger.debug("Parsed $totalRequestsParsed new requests.")
+        logger.debug { "Parsed $totalRequestsParsed new requests." }
 
         if(connection.getReadBuffer().position() == 0){
             // Recycle empty buffers back into the pool when not in use

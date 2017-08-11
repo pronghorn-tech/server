@@ -1,9 +1,9 @@
 package tech.pronghorn.server
 
 import mu.KotlinLogging
-import org.jctools.maps.NonBlockingHashSet
 import tech.pronghorn.coroutines.core.CoroutineWorker
 import tech.pronghorn.coroutines.service.Service
+import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.bufferpools.ConnectionBufferPool
 import tech.pronghorn.server.bufferpools.HandshakeBufferPool
 import tech.pronghorn.server.config.WebServerConfig
@@ -18,7 +18,7 @@ import java.time.format.DateTimeFormatter
 
 sealed class WebWorker : CoroutineWorker() {
     //    protected val pendingConnections = NonBlockingHashSet<HttpConnection>()
-    protected val allConnections = NonBlockingHashSet<HttpConnection>()
+    protected val allConnections = ConcurrentSetPlugin.get<HttpConnection>()
 
     val handshakeBufferPool = HandshakeBufferPool()
     val connectionBufferPool = ConnectionBufferPool()

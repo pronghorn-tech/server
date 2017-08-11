@@ -1,9 +1,9 @@
 package tech.pronghorn.server
 
-import org.jctools.maps.NonBlockingHashMap
-import org.jctools.maps.NonBlockingHashSet
 import tech.pronghorn.coroutines.awaitable.QueueWriter
 import tech.pronghorn.coroutines.core.CoroutineWorker
+import tech.pronghorn.plugins.concurrentMap.ConcurrentMapPlugin
+import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.config.WebServerConfig
 import tech.pronghorn.server.core.HttpRequestHandler
 import tech.pronghorn.server.services.ServerConnectionCreationService
@@ -18,8 +18,8 @@ class WebServer(val config: WebServerConfig,
                 val handler: HttpRequestHandler) {
     private val logger = mu.KotlinLogging.logger {}
     private val serverSocket: ServerSocketChannel = ServerSocketChannel.open()
-    private val workers = NonBlockingHashSet<WebServerWorker>()
-    private val workerSocketWriters = NonBlockingHashMap<WebServerWorker, QueueWriter<SocketChannel>>()
+    private val workers = ConcurrentSetPlugin.get<WebServerWorker>()
+    private val workerSocketWriters = ConcurrentMapPlugin.get<WebServerWorker, QueueWriter<SocketChannel>>()
     private var lastWorkerID = 0
     private val acceptLock = ReentrantLock()
     init { serverSocket.configureBlocking(false) }
@@ -27,7 +27,7 @@ class WebServer(val config: WebServerConfig,
     var isRunning = false
 
     fun start() {
-        logger.debug("Starting server on ${config.address} with $${config.workerCount} workers")
+        logger.debug { "Starting server on ${config.address} with $${config.workerCount} workers" }
         isRunning = true
         serverSocket.socket().bind(config.address, 128)
 
@@ -100,7 +100,7 @@ class WebServer(val config: WebServerConfig,
     internal fun attemptAccept() {
         if(acceptLock.tryLock()) {
             try {
-                logger.debug("Accepting connections...")
+                logger.debug { "Accepting connections..." }
                 var acceptedSocket: SocketChannel? = serverSocket.accept()
                 var accepted = 0
                 while (acceptedSocket != null) {
@@ -117,7 +117,7 @@ class WebServer(val config: WebServerConfig,
                     }
                     acceptedSocket = serverSocket.accept()
                 }
-                logger.debug("Accepted $accepted connections.")
+                logger.debug { "Accepted $accepted connections." }
             }
             catch (ex: IOException){
                 // no-op

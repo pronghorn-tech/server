@@ -9,9 +9,9 @@ import tech.pronghorn.server.services.HttpRequestHandlerService
 import tech.pronghorn.server.services.ResponseWriterService
 import com.http.HttpRequest
 import mu.KotlinLogging
-import org.jctools.queues.SpscArrayQueue
 import tech.pronghorn.coroutines.awaitable.InternalFuture
 import tech.pronghorn.coroutines.awaitable.InternalQueue
+import tech.pronghorn.plugins.spscQueue.SpscQueuePlugin
 import tech.pronghorn.util.runAllIgnoringExceptions
 import tech.pronghorn.util.write
 import tech.pronghorn.server.bufferpools.PooledByteBuffer
@@ -49,7 +49,7 @@ abstract class HttpConnection(val worker: WebWorker,
     private var readBuffer: PooledByteBuffer? = null
     private var writeBuffer: PooledByteBuffer? = null
 
-    private val readyResponseQueue = SpscArrayQueue<HttpResponse>(responseQueueSize)
+    private val readyResponseQueue = SpscQueuePlugin.get<HttpResponse>(responseQueueSize)
     private val readyResponses = InternalQueue(readyResponseQueue)
     private val readyResponseWriter = readyResponses.queueWriter
     private val readyResponseReader = readyResponses.queueReader
@@ -135,7 +135,7 @@ abstract class HttpConnection(val worker: WebWorker,
     }
 
     open fun close(reason: String) {
-        logger.debug("Closing connection : $reason")
+        logger.debug { "Closing connection : $reason" }
         selectionKey.cancel()
         runAllIgnoringExceptions(
                 { socket.write(reason) },
@@ -213,7 +213,7 @@ abstract class HttpConnection(val worker: WebWorker,
         }
     }
 
-    private val queuedRequestsQueue = SpscArrayQueue<HttpRequest>(1024)
+    private val queuedRequestsQueue = SpscQueuePlugin.get<HttpRequest>(1024)
     private val queuedRequests = InternalQueue(queuedRequestsQueue)
     private val queuedRequestsWriter = queuedRequests.queueWriter
     private val queuedRequestsReader = queuedRequests.queueReader
@@ -260,7 +260,7 @@ abstract class HttpConnection(val worker: WebWorker,
             }
             buffer.flip()
             val wrote = socket.write(buffer)
-            logger.debug("Wrote $wrote bytes to socket.")
+            logger.debug { "Wrote $wrote bytes to socket." }
             //logger.error("buffer after write: position: ${buffer.position()}, limit: ${buffer.limit()}, remaining: ${buffer.remaining()}, hasRemaining: ${buffer.hasRemaining()}")
 //            println("Wrote $wrote bytes")
             if(!buffer.hasRemaining()){
@@ -435,7 +435,7 @@ class HttpClientConnection(worker: WebClientWorker,
                            private val readyPromise: InternalFuture.InternalPromise<HttpClientConnection>) : HttpConnection(worker, socket, selectionKey) {
     override val shouldSendMasked: Boolean = false
     override val requiresMasked: Boolean = true
-    private val sendQueue = SpscArrayQueue<WebsocketFrame>(1024)
+    private val sendQueue = SpscQueuePlugin.get<WebsocketFrame>(1024)
 
     override fun close(reason: String) {
         if (!isHandshakeComplete) {

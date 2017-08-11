@@ -1,12 +1,12 @@
 package tech.pronghorn.server
 
 import mu.KotlinLogging
-import org.jctools.maps.NonBlockingHashMap
-import org.jctools.maps.NonBlockingHashSet
 import tech.pronghorn.coroutines.awaitable.CoroutineFuture
 import tech.pronghorn.coroutines.awaitable.InternalFuture
 import tech.pronghorn.coroutines.awaitable.QueueWriter
 import tech.pronghorn.coroutines.core.CoroutineWorker
+import tech.pronghorn.plugins.concurrentMap.ConcurrentMapPlugin
+import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.config.WebsocketClientConfig
 import tech.pronghorn.server.services.ClientConnectionCreationService
 import java.net.InetSocketAddress
@@ -17,8 +17,8 @@ class PendingClientConnection(val socket: SocketChannel,
 
 class WebsocketClient(val config: WebsocketClientConfig) {
     private val logger = KotlinLogging.logger {}
-    private val workers = NonBlockingHashSet<WebClientWorker>()
-    private val workerSocketWriters = NonBlockingHashMap<WebClientWorker, QueueWriter<PendingClientConnection>>()
+    private val workers = ConcurrentSetPlugin.get<WebClientWorker>()
+    private val workerSocketWriters = ConcurrentMapPlugin.get<WebClientWorker, QueueWriter<PendingClientConnection>>()
     private var lastWorkerID = 0
     private var hasStarted = false
 

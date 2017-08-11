@@ -1,12 +1,11 @@
 package tech.pronghorn.websocket.core
 
-import tech.pronghorn.http.HttpResponse
-import tech.pronghorn.http.protocol.CommonMimeTypes
 import com.http.HttpVersion
 import com.http.protocol.HttpResponseCode
 import com.http.protocol.HttpResponseHeader
 import com.jsoniter.output.JsonStream
 import org.junit.Test
+import tech.pronghorn.http.HttpResponse
 import tech.pronghorn.test.CDBTest
 import java.nio.ByteBuffer
 import java.time.ZoneId

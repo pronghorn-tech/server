@@ -1,7 +1,7 @@
 package tech.pronghorn.server.bufferpools
 
 import mu.KotlinLogging
-import org.jctools.queues.SpscArrayQueue
+import tech.pronghorn.plugins.spscQueue.SpscQueuePlugin
 import java.nio.ByteBuffer
 
 abstract class BufferPoolManager(val bufferSize: Int) {
@@ -48,5 +48,5 @@ abstract class BufferPoolManager(val bufferSize: Int) {
         pool.offer(buffer)
     }
 
-    private val pool = SpscArrayQueue<PooledByteBuffer>(1024)
+    private val pool = SpscQueuePlugin.get<PooledByteBuffer>(1024)
 }

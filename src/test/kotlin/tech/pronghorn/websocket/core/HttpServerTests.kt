@@ -90,7 +90,7 @@ class HttpServerTests : CDBTest() {
     @Test
     fun serversHandleRequests() {
         repeat(256) {
-            val serverThreadCount = 4
+            val serverThreadCount = 8
             val clientThreadCount = 2
             val channelCount = 16384
 
