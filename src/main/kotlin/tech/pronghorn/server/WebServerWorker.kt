@@ -21,7 +21,7 @@ sealed class WebWorker : CoroutineWorker() {
     protected val allConnections = ConcurrentSetPlugin.get<HttpConnection>()
 
     val handshakeBufferPool = HandshakeBufferPool()
-    val connectionBufferPool = ConnectionBufferPool()
+    val connectionBufferPool = ConnectionBufferPool(true)
 
     fun getPendingConnectionCount(): Int {
         throw Exception("No longer valid")
@@ -63,11 +63,11 @@ sealed class WebWorker : CoroutineWorker() {
     protected val handshakeService = HandshakeService(this)
     protected val connectionReadService = ConnectionReadService(this)
 
-    protected val handshakeServiceQueueWriter by lazy {
+    protected val handshakeServiceQueueWriter by lazy(LazyThreadSafetyMode.NONE) {
         handshakeService.getQueueWriter()
     }
 
-    protected val connectionReadServiceQueueWriter by lazy {
+    protected val connectionReadServiceQueueWriter by lazy(LazyThreadSafetyMode.NONE) {
         connectionReadService.getQueueWriter()
     }
 
@@ -98,7 +98,7 @@ class WebClientWorker(config: WebsocketClientConfig) : WebWorker() {
     override val logger = KotlinLogging.logger {}
     private val connectionCreationService = ClientConnectionCreationService(this, selector, config.randomGeneratorBuilder())
     private val connectionFinisherService = WebsocketConnectionFinisherService(this, selector, config.randomGeneratorBuilder())
-    private val connectionFinisherWriter by lazy {
+    private val connectionFinisherWriter by lazy(LazyThreadSafetyMode.NONE) {
         connectionFinisherService.getQueueWriter()
     }
 
@@ -137,29 +137,41 @@ class WebServerWorker(private val server: WebServer,
     private val serverKey = server.registerAcceptWorker(selector)
     private val connectionCreationService = ServerConnectionCreationService(this, selector)
     private val httpRequestHandlerService = HttpRequestHandlerService(this, handler)
+    private val responseService = ResponseWriterPerRequestService(this)
+    private val handlerService = HttpRequestHandlerPerRequestService(this, handler)
     private val responseWriterService = ResponseWriterService(this)
 
     override val services: List<Service> = listOf(
             connectionCreationService,
             httpRequestHandlerService,
-            responseWriterService
+            responseWriterService,
+            handlerService,
+            responseService
     ).plus(commonServices)
 
     override fun processKey(key: SelectionKey): Unit {
-        if (key == serverKey && key.isAcceptable){
+        if (key == serverKey && key.isAcceptable) {
             server.attemptAccept()
-        }
-        else if (key.isReadable) {
+        } else if (key.isReadable) {
             val attachment = key.attachment()
             if (attachment is HttpServerConnection) {
-                if (!connectionReadServiceQueueWriter.offer(attachment)) {
-                    // TODO: handle this properly
-                    throw Exception("ConnectionReadService full!")
+                if (!attachment.isReadQueued) {
+                    if (!connectionReadServiceQueueWriter.offer(attachment)) {
+                        // TODO: handle this properly
+                        throw Exception("ConnectionReadService full!")
+                    }
+                    attachment.isReadQueued = true
                 }
-                attachment.removeInterestOps(SelectionKey.OP_READ)
+//                attachment.removeInterestOps(SelectionKey.OP_READ)
             }
         } else {
             throw Exception("Unexpected readyOps for attachment : ${key.readyOps()} ${key.attachment()}")
         }
     }
+}
+
+class DummyWorker : WebWorker() {
+    override val logger = KotlinLogging.logger {}
+    override val services = emptyList<Service>()
+    override fun processKey(key: SelectionKey) = TODO()
 }

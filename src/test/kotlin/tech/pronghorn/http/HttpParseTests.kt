@@ -53,7 +53,7 @@ class WebsocketServerTests : CDBTest() {
             val pre = System.currentTimeMillis()
 
             while (x < count) {
-                val parsed = HttpRequestParser.parse(buffer)
+                val parsed = HttpRequestParser.parse(buffer, TODO())
                 if (parsed is HttpRequest && parsed.method == HttpMethod.GET) {
                     x += 1
                 }
@@ -80,7 +80,7 @@ class WebsocketServerTests : CDBTest() {
             val buffer = ByteBuffer.allocate(x)
             buffer.put(validRequestBytes, 0, x)
             buffer.flip()
-            val parsed = HttpRequestParser.parse(buffer)
+            val parsed = HttpRequestParser.parse(buffer, TODO())
             if (parsed is HttpRequest) {
                 assertEquals(6, parsed.headers.size)
                 validResponses += 1
@@ -100,7 +100,7 @@ class WebsocketServerTests : CDBTest() {
         val invalidMethodLines = validRequestLines.copyOf()
         invalidMethodLines[0] = invalidMethodLines[0].replace("GET", "WRONG")
         val buffer = writeRequestLinesToBuffer(invalidMethodLines)
-        val parsed = HttpRequestParser.parse(buffer)
+        val parsed = HttpRequestParser.parse(buffer, TODO())
 
         assertEquals(InvalidMethodParseError, parsed)
     }
@@ -114,7 +114,7 @@ class WebsocketServerTests : CDBTest() {
         val invalidMethodLines = validRequestLines.copyOf()
         invalidMethodLines[0] = invalidMethodLines[0].replace("HTTP/1.1", "HTTP/3")
         val buffer = writeRequestLinesToBuffer(invalidMethodLines)
-        val parsed = HttpRequestParser.parse(buffer)
+        val parsed = HttpRequestParser.parse(buffer, TODO())
 
         assertEquals(InvalidVersionParseError, parsed)
     }

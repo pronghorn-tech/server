@@ -8,9 +8,11 @@ import tech.pronghorn.server.core.HttpRequestHandler
 import tech.pronghorn.server.services.HttpRequestHandlerService
 import tech.pronghorn.server.services.ResponseWriterService
 import com.http.HttpRequest
+import mu.KLogger
 import mu.KotlinLogging
 import tech.pronghorn.coroutines.awaitable.InternalFuture
 import tech.pronghorn.coroutines.awaitable.InternalQueue
+import tech.pronghorn.coroutines.service.Service
 import tech.pronghorn.plugins.spscQueue.SpscQueuePlugin
 import tech.pronghorn.util.runAllIgnoringExceptions
 import tech.pronghorn.util.write
@@ -20,6 +22,7 @@ import java.net.ConnectException
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.CancelledKeyException
+import java.nio.channels.ClosedChannelException
 import java.nio.channels.SelectionKey
 import java.nio.channels.SocketChannel
 import java.util.*
@@ -37,9 +40,11 @@ abstract class HttpConnection(val worker: WebWorker,
         private const val responseQueueSize = 64
     }
 
+    private var isClosed = false
     private val logger = KotlinLogging.logger {}
     abstract val shouldSendMasked: Boolean
     abstract val requiresMasked: Boolean
+    var isReadQueued = false
 
     var isHandshakeComplete = false
         private set
@@ -54,11 +59,11 @@ abstract class HttpConnection(val worker: WebWorker,
     private val readyResponseWriter = readyResponses.queueWriter
     private val readyResponseReader = readyResponses.queueReader
 
-    private val connectionWriter by lazy {
+    private val connectionWriter by lazy(LazyThreadSafetyMode.NONE) {
         worker.requestInternalWriter<HttpConnection, ResponseWriterService>()
     }
 
-    private val requestsReadyWriter by lazy {
+    private val requestsReadyWriter by lazy(LazyThreadSafetyMode.NONE) {
         worker.requestInternalWriter<HttpConnection, HttpRequestHandlerService>()
     }
 
@@ -134,11 +139,13 @@ abstract class HttpConnection(val worker: WebWorker,
         releaseWriteBuffer()
     }
 
-    open fun close(reason: String) {
+    open fun close(reason: String? = null) {
         logger.debug { "Closing connection : $reason" }
+        isReadQueued = false
+        isClosed = true
         selectionKey.cancel()
         runAllIgnoringExceptions(
-                { socket.write(reason) },
+                { if (reason != null) socket.write(reason) },
                 { socket.close() }
         )
         worker.removeConnection(this)
@@ -206,10 +213,16 @@ abstract class HttpConnection(val worker: WebWorker,
 
     suspend fun appendResponse(response: HttpResponse) {
         val empty = readyResponseReader.isEmpty()
-        readyResponseWriter.addAsync(response)
+        // TODO: is this better than just the addAsync?
+        if(!readyResponseWriter.offer(response)) {
+            readyResponseWriter.addAsync(response)
+        }
 
         if (empty) {
-            connectionWriter.addAsync(this)
+            // TODO: is this better than just the addAsync?
+            if(!connectionWriter.offer(this)) {
+                connectionWriter.addAsync(this)
+            }
         }
     }
 
@@ -218,8 +231,8 @@ abstract class HttpConnection(val worker: WebWorker,
     private val queuedRequestsWriter = queuedRequests.queueWriter
     private val queuedRequestsReader = queuedRequests.queueReader
 
-    suspend fun queueRequest(request: HttpRequest){
-        if(queuedRequestsReader.isEmpty()){
+    suspend fun queueRequest(request: HttpRequest) {
+        if (queuedRequestsReader.isEmpty()) {
             requestsReadyWriter.addAsync(this)
         }
         queuedRequestsWriter.addAsync(request)
@@ -227,14 +240,36 @@ abstract class HttpConnection(val worker: WebWorker,
 
     suspend fun handleRequests(requestHandler: HttpRequestHandler) {
         var request = queuedRequestsReader.poll()
-        while(request != null) {
+        while (request != null) {
             val response = requestHandler.handleRequest(request)
             appendResponse(response)
             request = queuedRequestsReader.poll()
         }
     }
 
-    suspend fun writeResponses(): Boolean {
+    fun writeResponse(response: HttpResponse): Boolean {
+        if (isClosed) {
+            return true
+        }
+
+        val buffer = getWriteBuffer()
+        renderResponseDirect(buffer, response)
+        buffer.flip()
+        try {
+            socket.write(buffer)
+        } catch (ex: ClosedChannelException) {
+            close()
+            return true
+        }
+        if (!buffer.hasRemaining()) {
+            releaseWriteBuffer()
+            return true
+        } else {
+            return false
+        }
+    }
+
+    fun writeResponses(): Boolean {
         val buffer = getWriteBuffer()
         if (!buffer.hasRemaining()) {
             logger.error("FULL BUFFER")
@@ -248,14 +283,14 @@ abstract class HttpConnection(val worker: WebWorker,
                 return false
             } else {
                 logger.info("Wrote $wrote bytes")
-                if(!buffer.hasRemaining()){
+                if (!buffer.hasRemaining()) {
                     return true
                 }
             }
         } else {
             var response = readyResponseReader.poll()
             while (buffer.hasRemaining() && response != null) {
-                renderResponse(buffer, response)
+                renderResponseDirect(buffer, response)
                 response = readyResponseReader.poll()
             }
             buffer.flip()
@@ -263,76 +298,46 @@ abstract class HttpConnection(val worker: WebWorker,
             logger.debug { "Wrote $wrote bytes to socket." }
             //logger.error("buffer after write: position: ${buffer.position()}, limit: ${buffer.limit()}, remaining: ${buffer.remaining()}, hasRemaining: ${buffer.hasRemaining()}")
 //            println("Wrote $wrote bytes")
-            if(!buffer.hasRemaining()){
+            if (!buffer.hasRemaining()) {
                 releaseWriteBuffer()
                 return true
-            }
-            else {
+            } else {
 //                logger.error("INCOMPLETE WRITE")
                 return false
 //                System.exit(1)
             }
         }
     }
-//
-//    fun writeHeader(headerType: HttpResponseHeader,
-//                    headerValue: ByteArray,
-//                    output: ByteArray,
-//                    offset: Int): Int {
-//        val typeSize = headerType.bytes.size
-//        val valueSize = headerValue.size
-//        val typeSizeOffset = offset + typeSize
-//        System.arraycopy(headerType.bytes, 0, output, offset, typeSize)
-//        output[typeSizeOffset] = colonByte
-//        output[typeSizeOffset + 1] = spaceByte
-//        System.arraycopy(headerValue, 0, output, typeSizeOffset + 2, valueSize)
-//        val endOffset = typeSizeOffset + 2 + valueSize
-//        output[endOffset] = carriageByte
-//        output[endOffset + 1] = returnByte
-//        return typeSize + 2 + valueSize + 2
-//    }
-//
-//    fun getNumericLength(n: Int): Int {
-//        return when {
-//            n < 10 -> 1
-//            n < 100 -> 2
-//            n < 1000 -> 3
-//            n < 10000 -> 4
-//            n < 100000 -> 5
-//            n < 1000000 -> 6
-//            n < 10000000 -> 7
-//            n < 100000000 -> 8
-//            n < 1000000000 -> 9
-//            else -> 10
-//        }
-//    }
-//
-//    fun writeNumericHeader(headerType: HttpResponseHeader,
-//                           numeric: Int,
-//                           output: ByteArray,
-//                           offset: Int): Int {
-//        val typeSize = headerType.bytes.size
-//        val valueSize = getNumericLength(numeric)
-//        val typeSizeOffset = offset + typeSize
-//        System.arraycopy(headerType.bytes, 0, output, offset, typeSize)
-//        output[typeSizeOffset] = carriageByte
-//        output[typeSizeOffset + 1] = returnByte
-//        val loc = typeSizeOffset + 2 + valueSize
-//        output[loc] = numeric.rem(10).toByte()
-//        if(numeric > 10) output[loc - 1] = (48 + (numeric.rem(100) / 10)).toByte()
-//        if(numeric > 100) output[loc - 2] = (48 + (numeric.rem(1000) / 100)).toByte()
-//        if(numeric > 1000) output[loc - 3] = (48 + (numeric.rem(10000) / 1000)).toByte()
-//        if(numeric > 10000) output[loc - 4] = (48 + (numeric.rem(100000) / 10000)).toByte()
-//        if(numeric > 100000) output[loc - 5] = (48 + (numeric.rem(1000000) / 100000)).toByte()
-//        if(numeric > 1000000) output[loc - 6] = (48 + (numeric.rem(10000000) / 1000000)).toByte()
-//        if(numeric > 10000000) output[loc - 7] = (48 + (numeric.rem(100000000) / 10000000)).toByte()
-//        if(numeric > 100000000) output[loc - 8] = (48 + (numeric.rem(1000000000) / 100000000)).toByte()
-//        if(numeric > 1000000000) output[loc - 9] = (48 + (numeric.rem(10000000000) / 1000000000)).toByte()
-//        val endOffset = typeSizeOffset + 2 + valueSize
-//        output[endOffset] = carriageByte
-//        output[endOffset + 1] = returnByte
-//        return typeSize + 2 + valueSize + 2
-//    }
+
+    fun renderResponseDirect(buffer: ByteBuffer,
+                             response: HttpResponse): Boolean {
+        //val dateBytes = worker.getDateHeaderValue()
+        val size = response.getOutputSize()
+        //val start = buffer.position()
+
+        if (buffer.remaining() < size) {
+            return false
+        }
+
+        buffer.put(response.httpVersion.bytes)
+        buffer.put(spaceByte)
+        buffer.put(response.code.bytes)
+        buffer.put(carriageByte)
+        buffer.put(returnByte)
+
+        response.headers.forEach { header ->
+            header.writeHeaderDirect(buffer, buffer.position())
+        }
+
+        buffer.put(carriageByte)
+        buffer.put(returnByte)
+
+        if (response.body.isNotEmpty()) {
+            buffer.put(response.body, 0, response.body.size)
+        }
+
+        return true
+    }
 
     fun renderResponse(buffer: ByteBuffer,
                        response: HttpResponse): Boolean {
@@ -364,7 +369,7 @@ abstract class HttpConnection(val worker: WebWorker,
 //        z += writeHeader(HttpResponseHeader.Date, dateBytes, output, z)
 
         var x = 0
-        while(x < response.headers.size){
+        while (x < response.headers.size) {
             z += response.headers[x].writeHeader(output, z)
             x += 1
         }
@@ -437,7 +442,7 @@ class HttpClientConnection(worker: WebClientWorker,
     override val requiresMasked: Boolean = true
     private val sendQueue = SpscQueuePlugin.get<WebsocketFrame>(1024)
 
-    override fun close(reason: String) {
+    override fun close(reason: String?) {
         if (!isHandshakeComplete) {
             readyPromise.completeExceptionally(ConnectException(reason))
         }
@@ -478,4 +483,15 @@ class HttpClientConnection(worker: WebClientWorker,
         readyPromise.complete(this)
         return true
     }
+}
+
+class DummyConnection(worker: WebWorker,
+                      socket: SocketChannel,
+                      selectionKey: SelectionKey) : HttpConnection(worker, socket, selectionKey) {
+
+    override fun handleHandshakeRequest(request: ParsedHttpRequest, handshaker: WebsocketHandshaker): Boolean = false
+
+    override val shouldSendMasked: Boolean = false
+    override val requiresMasked: Boolean = false
+
 }

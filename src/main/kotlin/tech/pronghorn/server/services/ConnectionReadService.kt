@@ -16,11 +16,15 @@ class ConnectionReadService(override val worker: WebWorker) : InternalQueueServi
     private val maxFramesParsed = 64
 //    private var connectionsProcessed = 0
 
-//    private val requestWriter by lazy {
+//    private val requestWriter by lazy(LazyThreadSafetyMode.NONE) {
 //        worker.requestInternalWriter<HttpRequest, HttpRequestHandlerService>()
 //    }
 
-    private val frameWriter by lazy {
+    private val requestWriter by lazy(LazyThreadSafetyMode.NONE) {
+        worker.requestInternalWriter<HttpRequest, HttpRequestHandlerPerRequestService>()
+    }
+
+    private val frameWriter by lazy(LazyThreadSafetyMode.NONE) {
         worker.requestInternalWriter<WebsocketFrame, FrameHandlerService>()
     }
 
@@ -36,11 +40,42 @@ class ConnectionReadService(override val worker: WebWorker) : InternalQueueServi
 
     override suspend fun process(connection: HttpConnection): Boolean {
 //        connectionsProcessed += 1
+        val totalRequestsParsed = 0
+        val bytesRead = connection.readIntoBuffer()
+
+        if(bytesRead < 0){
+            // The other end of the socket has disconnected, end processing immediately
+            connection.close("Disconnected.")
+            return true
+        }
+        else if(bytesRead == 0){
+            return true
+        }
+
+        connection.parseRequests(maxFramesParsed)
+
+        logger.debug { "Parsed $totalRequestsParsed new requests." }
+
+        if(connection.getReadBuffer().position() == 0){
+            // Recycle empty buffers back into the pool when not in use
+            connection.releaseReadBuffer()
+        }
+
+        connection.isReadQueued = false
+//            connection.addInterestOps(SelectionKey.OP_READ)
+        return true
+    }
+
+    suspend fun processOLD(connection: HttpConnection): Boolean {
+//        connectionsProcessed += 1
         var totalRequestsParsed = 0
         var bytesRead = connection.readIntoBuffer()
         if(bytesRead < 0){
             // The other end of the socket has disconnected, end processing immediately
             connection.close("Disconnected.")
+            return true
+        }
+        else if(bytesRead == 0){
             return true
         }
 
@@ -78,12 +113,13 @@ class ConnectionReadService(override val worker: WebWorker) : InternalQueueServi
             return false
         }
         else {
-            connection.addInterestOps(SelectionKey.OP_READ)
+            connection.isReadQueued = false
+//            connection.addInterestOps(SelectionKey.OP_READ)
             return true
         }
     }
 
-    suspend fun processOLD(connection: HttpConnection): Boolean {
+    suspend fun processWEBSOCKET(connection: HttpConnection): Boolean {
 //        connectionsProcessed += 1
         var totalFramesParsed = 0
         var bytesRead = connection.readIntoBuffer()
@@ -139,21 +175,20 @@ class ConnectionReadService(override val worker: WebWorker) : InternalQueueServi
         var totalRead = 0
         try {
             var readBytes = socket.read(buffer)
-
-            while (readBytes > 0) {
+//            while (readBytes > 0) {
                 totalRead += readBytes
-                if (!buffer.hasRemaining()) {
-                    break
-                }
-
-                readBytes = socket.read(buffer)
-            }
-
-            if(readBytes < 0){
-                // disconnects and end processing immediately
-                logger.warn("Connection closed.")
-                return readBytes
-            }
+//                if (!buffer.hasRemaining()) {
+//                    break
+//                }
+//
+//                readBytes = socket.read(buffer)
+//            }
+//
+//            if(readBytes < 0){
+//                // disconnects and end processing immediately
+//                logger.warn("Connection closed.")
+//                return readBytes
+//            }
         }
         catch (ex: IOException) {
             close("Unexpected IO Exception")
@@ -164,7 +199,7 @@ class ConnectionReadService(override val worker: WebWorker) : InternalQueueServi
 
     private suspend fun HttpConnection.parseRequests(maxToParse: Int): Int {
         val buffer = getReadBuffer()
-        if (buffer.position() == 0) {
+        if (!buffer.hasRemaining()) {
             return 0
         }
 
@@ -172,15 +207,17 @@ class ConnectionReadService(override val worker: WebWorker) : InternalQueueServi
         buffer.flip()
 
         try {
-            var request = HttpRequestParser.parse(buffer)
+            var request = HttpRequestParser.parseDirect(buffer, this)
+            // TODO: handle certain parse errors properly here.
             while (request is HttpRequest) {
-                queueRequest(request)
-//                requestWriter.addAsync(request)
+//                requestWriter.addAsync(request) // Faster for non-pipelining
+                queueRequest(request) // Faster for pipelining
                 requestsParsed += 1
-                if (requestsParsed >= maxToParse) {
+                if (!buffer.hasRemaining() || requestsParsed >= maxToParse) {
                     break
                 }
-                request = HttpRequestParser.parse(buffer)
+                request = HttpRequestParser.parseDirect(buffer, this)
+                // TODO: handle certain parse errors properly here.
             }
         }
         catch (ex: Exception) {

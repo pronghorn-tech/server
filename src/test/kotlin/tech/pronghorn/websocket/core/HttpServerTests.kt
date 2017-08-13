@@ -56,7 +56,7 @@ class HttpCounterHandler : HttpRequestHandler() {
         val tmpHeaders = ArrayList<HttpResponseHeaderValue<*>>()
         tmpHeaders.add(NumericResponseHeaderValue(HttpResponseHeader.ContentLength, contentBytes.size))
         tmpHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.Server, serverBytes))
-        return HttpResponse(HttpResponseCode.OK, tmpHeaders, contentBytes, HttpVersion.HTTP11, serverBytes)
+        return HttpResponse(HttpResponseCode.OK, tmpHeaders, contentBytes, HttpVersion.HTTP11, serverBytes, request.connection)
 //        return HttpResponse(HttpResponseCode.OK, headers, contentBytes, HttpVersion.HTTP11, serverBytes)
     }
 }
@@ -90,14 +90,14 @@ class HttpServerTests : CDBTest() {
     @Test
     fun serversHandleRequests() {
         repeat(256) {
-            val serverThreadCount = 8
+            val serverThreadCount = 4
             val clientThreadCount = 2
-            val channelCount = 16384
+            val channelCount = 256
 
 //                val batchSize = 256
 //                val batchCount = 128 * 16
 
-            val batchSize = 16
+            val batchSize = 1
             val batchCount = 128 * 128
 
             val counterHandlers = mutableListOf<HttpCounterHandler>(HttpCounterHandler())

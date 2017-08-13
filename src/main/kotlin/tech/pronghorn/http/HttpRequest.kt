@@ -4,8 +4,9 @@ import com.http.protocol.CustomHttpRequestHeader
 import com.http.protocol.HttpMethod
 import com.http.protocol.HttpRequestHeader
 import com.http.protocol.StandardHttpRequestHeaders
-import it.unimi.dsi.fastutil.objects.*
 import mu.KotlinLogging
+import tech.pronghorn.plugins.map.MapPlugin
+import tech.pronghorn.server.HttpConnection
 import java.nio.ByteBuffer
 import java.util.*
 import kotlin.experimental.or
@@ -16,7 +17,8 @@ class HttpRequest(val bytes: ByteArray,
                   val method: HttpMethod,
                   val url: StringLocation,
                   val version: HttpVersion,
-                  val headers: Map<HttpRequestHeader, StringLocation>): HttpParseResult()
+                  val headers: Map<HttpRequestHeader, StringLocation>,
+                  val connection: HttpConnection): HttpParseResult()
 
 object IncompleteRequestParseError: HttpParseResult()
 
@@ -47,7 +49,29 @@ fun isEqual(a1: ByteArray, a2: ByteArray, offset: Int, size: Int): Boolean {
     return true
 }
 
+fun isEqual(arr: ByteArray, buffer: ByteBuffer, offset: Int, size: Int): Boolean {
+    val prePosition = buffer.position()
+    if(arr.size != size){
+        return false
+    }
+
+    buffer.position(offset)
+    var x = 0
+    while(x < size){
+        if(buffer.get() != arr[x]){
+            buffer.position(prePosition)
+            return false
+        }
+        x += 1
+    }
+
+    buffer.position(prePosition)
+    return true
+}
+
 private val hasher = HashRegistry.getHasher()
+
+private val emptyBytes = ByteArray(0)
 
 data class StringLocation(val bytes: ByteArray,
                           val start: Int,
@@ -60,6 +84,10 @@ data class StringLocation(val bytes: ByteArray,
 //        System.arraycopy(bytes, start, value, 0, length)
 //        return value
 //}
+
+    constructor(bytebuffer: ByteBuffer,
+                start: Int,
+                length: Int): this(emptyBytes, start, length)
 
     override fun toString(): String {
         return String(bytes, start, length, Charsets.US_ASCII)
@@ -89,14 +117,174 @@ data class StringLocation(val bytes: ByteArray,
     }
 }
 
-object MapAllocator {
-    fun <K, V> getMap(): MutableMap<K, V> = Object2ObjectArrayMap()
-}
-
 object HttpRequestParser {
     private val logger = KotlinLogging.logger {}
 
-    fun parse(buffer: ByteBuffer): HttpParseResult {
+    fun parseDirect(buffer: ByteBuffer,
+              connection: HttpConnection): HttpParseResult {
+        val start = buffer.position()
+        val bytes = ByteArray(0)
+
+        var firstSpace = -1
+        while (buffer.hasRemaining()) {
+            if (buffer.get() == spaceByte) {
+                firstSpace = buffer.position() - 1
+                break
+            }
+        }
+
+        if (firstSpace == -1) {
+            return IncompleteRequestParseError
+        }
+
+        val methodSize = firstSpace - start
+        if(methodSize >= HttpMethod.byLength.size){
+            return InvalidMethodParseError
+        }
+
+        val possibleMethods = HttpMethod.byLength[methodSize]
+
+        val method = possibleMethods?.find { possible -> isEqual(possible.bytes, buffer, start, methodSize) }
+
+        if(method == null){
+            return InvalidMethodParseError
+        }
+
+        var urlEnd = -1
+        while (buffer.hasRemaining()) {
+            if (buffer.get() == spaceByte) {
+                urlEnd = buffer.position() - 1
+                break
+            }
+        }
+
+        if (urlEnd == -1) {
+            return IncompleteRequestParseError
+        }
+
+        val url = StringLocation(buffer, firstSpace, urlEnd)
+
+        var requestLineEnd = -1
+        while (buffer.hasRemaining()) {
+            if (buffer.get() == carriageByte && buffer.hasRemaining() && buffer.get() == returnByte) {
+                requestLineEnd = buffer.position() - 1
+                break
+            }
+        }
+
+        if (requestLineEnd == -1) {
+            return IncompleteRequestParseError
+        }
+
+        val versionLength = requestLineEnd - urlEnd - 2
+
+        val version = if(versionLength == 8 && buffer.get(urlEnd + 6) == '1'.toByte() && isEqual(HttpVersion.HTTP11.bytes, buffer, urlEnd + 1, versionLength)){
+            HttpVersion.HTTP11
+        }
+        else if(versionLength == 6 && buffer.get(urlEnd + 6) == '2'.toByte() && isEqual(HttpVersion.HTTP2.bytes, buffer, urlEnd + 1, versionLength)){
+            HttpVersion.HTTP2
+        }
+        else if(versionLength == 8 && buffer.get(urlEnd + 6) == '1'.toByte() && isEqual(HttpVersion.HTTP11.bytes, buffer, urlEnd + 1, versionLength)){
+            HttpVersion.HTTP10
+        }
+        else {
+            return InvalidVersionParseError
+        }
+
+        val headers = MapPlugin.get<HttpRequestHeader, StringLocation>()
+
+        var headersEnd = -1
+
+        while (true) {
+            val lineStart = buffer.position()
+            var typeEnd = -1
+            var lineEnd = -1
+
+            while (buffer.hasRemaining()) {
+                val bytePos = buffer.position()
+                val byte = buffer.get()
+
+                if (byte == colonByte) {
+                    typeEnd = buffer.position() - 1
+                    break
+                }
+                else if(byte < 91 && byte > 64) {
+                    // lowercase header names for lookup
+                    buffer.put(bytePos, byte.or(0x20))
+                }
+            }
+
+            // trim whitespace from beginning of value
+            var maybeWhite = buffer.get()
+            while (buffer.hasRemaining() && (maybeWhite == spaceByte || maybeWhite == tabByte)) {
+                maybeWhite = buffer.get()
+            }
+
+            buffer.position(buffer.position() - 1)
+            val valueStart = buffer.position()
+
+            while (buffer.hasRemaining()) {
+                if (buffer.get() == carriageByte && buffer.hasRemaining() && buffer.get() == returnByte) {
+                    lineEnd = buffer.position()
+                    break
+                }
+            }
+
+            if(typeEnd == -1 || lineEnd == -1){
+                return IncompleteRequestParseError
+            }
+
+            var valueEnd = lineEnd - 2
+            // trim whitespace from end of the value
+            maybeWhite = buffer.get(valueEnd - 1)
+            while (maybeWhite == spaceByte || maybeWhite == tabByte) {
+                valueEnd -= 1
+                maybeWhite = buffer.get(valueEnd - 1)
+            }
+
+            val headerLength = typeEnd - lineStart
+
+            // start
+//            if(headerLength >= StandardHttpRequestHeaders.byLength.size){
+//                return InvalidHeaderTypeParseError
+//            }
+//
+//            val possibleHeader = StandardHttpRequestHeaders.byLength[headerLength]
+//            val headerType = possibleHeader?.find { possible -> isEqual(bytes, possible._bytes, lineStart, headerLength) }
+//                    ?: return InvalidHeaderTypeParseError
+            // end
+
+            // start
+            val headerType = if(headerLength < StandardHttpRequestHeaders.byLength.size) {
+                val possibleHeader = StandardHttpRequestHeaders.byLength[headerLength]
+                possibleHeader?.find { possible -> isEqual(possible.getBytes(), buffer, lineStart, headerLength) }
+                        ?: CustomHttpRequestHeader(StringLocation(buffer, lineStart, headerLength))
+            }
+            else {
+                CustomHttpRequestHeader(StringLocation(buffer, lineStart, headerLength))
+            }
+            //end
+
+            val headerValue = StringLocation(buffer, valueStart, valueEnd - valueStart)
+
+            headers.put(headerType, headerValue)
+
+            if(buffer.limit() >= lineEnd + 2 && buffer.get(lineEnd) == carriageByte && buffer.get(lineEnd + 1) == returnByte){
+                buffer.position(buffer.position() + 2)
+                headersEnd = buffer.position()
+                break
+            }
+        }
+
+        if(headersEnd == -1){
+            return IncompleteRequestParseError
+        }
+
+        return HttpRequest(bytes, method, url, version, headers, connection)
+    }
+
+    fun parse(buffer: ByteBuffer,
+              connection: HttpConnection): HttpParseResult {
         val bytes = buffer.array()
         val limit = buffer.limit()
         val start = buffer.position()
@@ -121,12 +309,11 @@ object HttpRequestParser {
         }
 
         val possibleMethods = HttpMethod.byLength[z - start]
-        val optMethod = possibleMethods?.find { possible -> isEqual(bytes, possible.bytes, start, (z - start)) }
+        val method = possibleMethods?.find { possible -> isEqual(bytes, possible.bytes, start, (z - start)) }
 
-        if(optMethod == null){
+        if(method == null){
             return InvalidMethodParseError
         }
-        val tmpMethod = optMethod!!
 
         z += 1
 
@@ -178,9 +365,7 @@ object HttpRequestParser {
             return InvalidVersionParseError
         }
 
-        val fastHeaders = MapAllocator.getMap<HttpRequestHeader, StringLocation>()
-//        val fastHeaders = Object2ObjectArrayMap<HttpRequestHeader, StringLocation>()
-//        val fastHeaders = mutableMapOf<HttpRequestHeader, StringLocation>()
+        val headers = MapPlugin.get<HttpRequestHeader, StringLocation>()
 
         var headersEnd = -1
         while (true) {
@@ -251,7 +436,7 @@ object HttpRequestParser {
             //end
 
             val headerValue = StringLocation(bytes, valueStart, valueEnd - valueStart)
-            fastHeaders.put(headerType, headerValue)
+            headers.put(headerType, headerValue)
 
             if(z + 2 > limit){
                 return IncompleteRequestParseError
@@ -268,6 +453,6 @@ object HttpRequestParser {
         }
 
         buffer.position(z)
-        return HttpRequest(bytes, tmpMethod, url, version, fastHeaders)
+        return HttpRequest(bytes, method, url, version, headers, connection)
     }
 }

@@ -6,8 +6,15 @@ import com.http.protocol.HttpResponseHeader
 import com.jsoniter.output.JsonStream
 import org.junit.Test
 import tech.pronghorn.http.HttpResponse
+import tech.pronghorn.server.DummyConnection
+import tech.pronghorn.server.DummyWorker
 import tech.pronghorn.test.CDBTest
+import java.net.ServerSocket
 import java.nio.ByteBuffer
+import java.nio.channels.SelectionKey
+import java.nio.channels.Selector
+import java.nio.channels.ServerSocketChannel
+import java.nio.channels.SocketChannel
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -53,53 +60,30 @@ fun writeHeader(headerType: HttpResponseHeader,
 private val TMPLENGTHREMOVEME = "25".toByteArray(Charsets.US_ASCII)
 
 fun renderResponse(buffer: ByteBuffer,
-                   response: HttpResponse): Boolean {
-    val dateBytes = getDateHeaderValue()
+                         response: HttpResponse): Boolean {
     val size = response.getOutputSize()
+    val start = buffer.position()
 
     if (buffer.remaining() < size) {
         return false
     }
 
-    val offset = buffer.position()
-    val output = buffer.array()
-
-    var z = offset
-
-    System.arraycopy(httpVersion.bytes, 0, output, z, httpVersion.bytes.size)
-    z += httpVersion.bytes.size
-    output[z] = spaceByte
-    z += 1
-
-    System.arraycopy(response.code.bytes, 0, output, z, response.code.bytes.size)
-    z += response.code.bytes.size
-    output[z] = carriageByte
-    output[z + 1] = returnByte
-    z += 2
-
-    z += writeHeader(HttpResponseHeader.ContentLength, TMPLENGTHREMOVEME, output, z)
-    z += writeHeader(HttpResponseHeader.Server, response.serverBytes, output, z)
-    z += writeHeader(HttpResponseHeader.Date, dateBytes, output, z)
+    buffer.put(response.httpVersion.bytes)
+    buffer.put(tech.pronghorn.server.spaceByte)
+    buffer.put(response.code.bytes)
+    buffer.put(tech.pronghorn.server.carriageByte)
+    buffer.put(tech.pronghorn.server.returnByte)
 
     response.headers.forEach { header ->
-        z += header.writeHeader(output, z)
+        header.writeHeaderDirect(buffer, buffer.position())
     }
 
-//    response.headers.forEach { header ->
-//        z += writeHeader(header.key, header.value, output, z)
-//    }
-
-    output[z] = carriageByte
-    output[z + 1] = returnByte
-    z += 2
+    buffer.put(tech.pronghorn.server.carriageByte)
+    buffer.put(tech.pronghorn.server.returnByte)
 
     if (response.body.isNotEmpty()) {
-        System.arraycopy(response.body, 0, output, z, response.body.size)
+        buffer.put(response.body, 0, response.body.size)
     }
-
-    z += response.body.size
-
-    buffer.position(z)
 
     return true
 }
@@ -117,6 +101,12 @@ class JsonTests : CDBTest() {
 
             val serverBytes = "Pronghorn".toByteArray(Charsets.US_ASCII)
 
+            val socket = SocketChannel.open()
+            socket.configureBlocking(false)
+            val selector = Selector.open()
+            val key = socket.register(selector, SelectionKey.OP_READ)
+            val dummyConnection = DummyConnection(DummyWorker(), socket, key)
+
             while (x < count) {
                 val potato = Potato("Hello, World!$x")
                 val json = JsonStream.serialize(potato)
@@ -129,7 +119,8 @@ class JsonTests : CDBTest() {
 //                        ),
                         utf,
                         HttpVersion.HTTP11,
-                        serverBytes
+                        serverBytes,
+                        dummyConnection
                 )
 
                 renderResponse(buffer, response)

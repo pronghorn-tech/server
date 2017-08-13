@@ -4,12 +4,18 @@ import mu.KotlinLogging
 import tech.pronghorn.plugins.spscQueue.SpscQueuePlugin
 import java.nio.ByteBuffer
 
-abstract class BufferPoolManager(val bufferSize: Int) {
+abstract class BufferPoolManager(private val bufferSize: Int,
+                                 private val direct: Boolean = false) {
     private val logger = KotlinLogging.logger {}
 
     var threadsAccessed = mutableSetOf<Thread>()
 
-    fun getBuffer(): PooledByteBuffer {
+    fun getBuffer(): PooledByteBuffer = pool.poll() ?: PooledByteBuffer(
+            this,
+            if(direct) ByteBuffer.allocateDirect(bufferSize) else ByteBuffer.allocate(bufferSize)
+    )
+
+    fun DEBUGgetBuffer(): PooledByteBuffer {
         threadsAccessed.add(Thread.currentThread())
         if(threadsAccessed.size > 1){
             try {
@@ -29,7 +35,9 @@ abstract class BufferPoolManager(val bufferSize: Int) {
         return buffer
     }
 
-    fun release(buffer: PooledByteBuffer) {
+    fun release(buffer: PooledByteBuffer) = pool.offer(buffer)
+
+    fun DEBUGrelease(buffer: PooledByteBuffer) {
         threadsAccessed.add(Thread.currentThread())
         if(threadsAccessed.size > 1){
             try {
