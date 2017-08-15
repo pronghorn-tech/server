@@ -18,12 +18,12 @@ import java.util.*
 import kotlin.concurrent.thread
 import kotlin.system.measureTimeMillis
 
-import graphql.Scalars.*
-import graphql.*
-import graphql.execution.SimpleExecutionStrategy
-import graphql.schema.GraphQLFieldDefinition.newFieldDefinition
-import graphql.schema.GraphQLObjectType.newObject
-import graphql.schema.*
+//import graphql.Scalars.*
+//import graphql.*
+//import graphql.execution.SimpleExecutionStrategy
+//import graphql.schema.GraphQLFieldDefinition.newFieldDefinition
+//import graphql.schema.GraphQLObjectType.newObject
+//import graphql.schema.*
 import java.sql.ResultSet
 import kotlin.reflect.KType
 import kotlin.reflect.full.isSubclassOf

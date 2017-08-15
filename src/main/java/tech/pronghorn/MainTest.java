@@ -1,8 +1,5 @@
 package tech.pronghorn;
 
-import net.openhft.ticker.ITicker;
-import net.openhft.ticker.Ticker;
-
 public class MainTest {
     public static void main(String[] args) {
         int x = 0;

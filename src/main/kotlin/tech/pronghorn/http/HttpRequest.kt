@@ -7,6 +7,8 @@ import com.http.protocol.StandardHttpRequestHeaders
 import mu.KotlinLogging
 import tech.pronghorn.plugins.map.MapPlugin
 import tech.pronghorn.server.HttpConnection
+import java.net.URI
+import java.net.URL
 import java.nio.ByteBuffer
 import java.util.*
 import kotlin.experimental.or
@@ -69,7 +71,7 @@ fun isEqual(arr: ByteArray, buffer: ByteBuffer, offset: Int, size: Int): Boolean
     return true
 }
 
-private val hasher = HashRegistry.getHasher()
+//private val hasher = HashRegistry.getHasher()
 
 private val emptyBytes = ByteArray(0)
 
@@ -79,15 +81,12 @@ data class StringLocation(val bytes: ByteArray,
     var hash: Int? = null
 
     fun toByteArray(): ByteArray = Arrays.copyOfRange(bytes, start, start + length)
-//        val value = ByteArray(length)
-//
-//        System.arraycopy(bytes, start, value, 0, length)
-//        return value
-//}
 
-    constructor(bytebuffer: ByteBuffer,
+    constructor(byteBuffer: ByteBuffer,
                 start: Int,
-                length: Int): this(emptyBytes, start, length)
+                length: Int): this(emptyBytes, start, length) {
+
+    }
 
     override fun toString(): String {
         return String(bytes, start, length, Charsets.US_ASCII)
@@ -95,7 +94,7 @@ data class StringLocation(val bytes: ByteArray,
 
     override fun hashCode(): Int {
         if (hash == null) {
-            hash = hasher(bytes, start, length).hashCode()
+//            hash = hasher(bytes, start, length).hashCode()
         }
         return hash!!
     }
@@ -163,6 +162,14 @@ object HttpRequestParser {
         }
 
         val url = StringLocation(buffer, firstSpace, urlEnd)
+//        val urlArr = ByteArray(urlEnd - firstSpace - 1)
+//        buffer.position(firstSpace + 1)
+//        buffer.get(urlArr)
+//        val stringUrl = String(urlArr, Charsets.US_ASCII)
+//        val uri = URI(stringUrl)
+//        println("${uri.path}")
+//
+//        println(Arrays.hashCode(urlArr))
 
         var requestLineEnd = -1
         while (buffer.hasRemaining()) {
@@ -279,6 +286,13 @@ object HttpRequestParser {
         if(headersEnd == -1){
             return IncompleteRequestParseError
         }
+
+//        val pre = buffer.position()
+//        val fullArr = ByteArray(headersEnd)
+//        buffer.position(0)
+//        buffer.get(fullArr)
+//        println(String(fullArr, Charsets.US_ASCII))
+//        buffer.position(pre)
 
         return HttpRequest(bytes, method, url, version, headers, connection)
     }

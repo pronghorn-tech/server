@@ -137,7 +137,7 @@ class ByteArrayResponseHeaderValue(override val header: HttpResponseHeader,
 }
 
 class HttpResponse(val code: HttpResponseCode,
-                   val headers: ArrayList<HttpResponseHeaderValue<*>>,
+                   val headers: List<HttpResponseHeaderValue<*>>,
                    val body: ByteArray,
                    val httpVersion: HttpVersion,
                    val serverBytes: ByteArray,

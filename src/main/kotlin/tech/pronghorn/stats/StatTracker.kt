@@ -1,7 +1,5 @@
 package tech.pronghorn.stats
 
-import com.google.common.math.IntMath
-
 // Basic statistics tracker which can calculate min, max, mean, standard deviation, and a log 2 histogram in microseconds
 class StatTracker {
     var count: Long = 0L
@@ -105,9 +103,9 @@ class StatTracker {
         var x = first
         while (x <= last) {
             val percent = (histogram[x] * 100) / count
-            val lower = IntMath.pow(2, x)
-            val upper = Math.max(lower * 2, 1)
-            println("${getHistogramRange(lower, upper)} : ${"*".repeat(Math.max(percent.toInt(), 1))}")
+//            val lower = IntMath.pow(2, x)
+//            val upper = Math.max(lower * 2, 1)
+//            println("${getHistogramRange(lower, upper)} : ${"*".repeat(Math.max(percent.toInt(), 1))}")
             x += 1
         }
     }

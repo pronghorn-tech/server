@@ -28,6 +28,7 @@ class ConnectionReadService(override val worker: WebWorker) : InternalQueueServi
         worker.requestInternalWriter<WebsocketFrame, FrameHandlerService>()
     }
 
+/*
     override fun shouldYield(): Boolean {
 //        if(connectionsProcessed > 64) {
 //            connectionsProcessed = 0
@@ -37,11 +38,16 @@ class ConnectionReadService(override val worker: WebWorker) : InternalQueueServi
             return false
 //        }
     }
+*/
 
     override suspend fun process(connection: HttpConnection): Boolean {
 //        connectionsProcessed += 1
-        val totalRequestsParsed = 0
+//        val preRead = System.currentTimeMillis()
         val bytesRead = connection.readIntoBuffer()
+//        val postRead = System.currentTimeMillis()
+//        if(postRead - preRead > 10){
+//            logger.error("TOOK ${postRead - preRead} ms to do a read!?")
+//        }
 
         if(bytesRead < 0){
             // The other end of the socket has disconnected, end processing immediately
@@ -52,9 +58,12 @@ class ConnectionReadService(override val worker: WebWorker) : InternalQueueServi
             return true
         }
 
+//        val preParse = System.currentTimeMillis()
         connection.parseRequests(maxFramesParsed)
-
-        logger.debug { "Parsed $totalRequestsParsed new requests." }
+//        val postParse = System.currentTimeMillis()
+//        if(postParse - preParse > 10){
+//            logger.error("TOOK ${postParse - preParse} ms to parse a request!?")
+//        }
 
         if(connection.getReadBuffer().position() == 0){
             // Recycle empty buffers back into the pool when not in use
@@ -174,7 +183,13 @@ class ConnectionReadService(override val worker: WebWorker) : InternalQueueServi
 
         var totalRead = 0
         try {
+//            val preRead = System.currentTimeMillis()
             var readBytes = socket.read(buffer)
+//            val postRead = System.currentTimeMillis()
+//            if(postRead - preRead > 10){
+//                logger.error("REALLY TOOK ${postRead - preRead} ms to do a read ${readBytes} bytes!?")
+//            }
+
 //            while (readBytes > 0) {
                 totalRead += readBytes
 //                if (!buffer.hasRemaining()) {

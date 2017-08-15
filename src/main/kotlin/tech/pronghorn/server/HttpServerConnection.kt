@@ -1,22 +1,20 @@
 package tech.pronghorn.server
 
-import tech.pronghorn.http.HttpResponse
-import tech.pronghorn.websocket.core.ParsedHttpRequest
-import tech.pronghorn.websocket.core.WebsocketHandshaker
-import tech.pronghorn.websocket.protocol.WebsocketFrame
-import tech.pronghorn.server.core.HttpRequestHandler
-import tech.pronghorn.server.services.HttpRequestHandlerService
-import tech.pronghorn.server.services.ResponseWriterService
 import com.http.HttpRequest
-import mu.KLogger
 import mu.KotlinLogging
 import tech.pronghorn.coroutines.awaitable.InternalFuture
 import tech.pronghorn.coroutines.awaitable.InternalQueue
-import tech.pronghorn.coroutines.service.Service
+import tech.pronghorn.http.HttpResponse
 import tech.pronghorn.plugins.spscQueue.SpscQueuePlugin
+import tech.pronghorn.server.bufferpools.PooledByteBuffer
+import tech.pronghorn.server.core.HttpRequestHandler
+import tech.pronghorn.server.services.HttpRequestHandlerService
+import tech.pronghorn.server.services.ResponseWriterService
 import tech.pronghorn.util.runAllIgnoringExceptions
 import tech.pronghorn.util.write
-import tech.pronghorn.server.bufferpools.PooledByteBuffer
+import tech.pronghorn.websocket.core.ParsedHttpRequest
+import tech.pronghorn.websocket.core.WebsocketHandshaker
+import tech.pronghorn.websocket.protocol.WebsocketFrame
 import java.io.IOException
 import java.net.ConnectException
 import java.net.InetSocketAddress
@@ -32,6 +30,11 @@ const val carriageByte: Byte = 0xD
 const val returnByte: Byte = 0xA
 const val colonByte: Byte = 0x3A
 const val tabByte: Byte = 0x9
+const val forwardSlashByte: Byte = 0x2F
+const val asteriskByte: Byte = 0x2A
+const val percentByte: Byte = 0x25
+const val questionByte: Byte = 0x3F
+const val atByte: Byte = 0x40
 
 abstract class HttpConnection(val worker: WebWorker,
                               val socket: SocketChannel,
@@ -311,7 +314,7 @@ abstract class HttpConnection(val worker: WebWorker,
 
     fun renderResponseDirect(buffer: ByteBuffer,
                              response: HttpResponse): Boolean {
-        //val dateBytes = worker.getDateHeaderValue()
+//        val dateBytes = worker.getDateHeaderValue()
         val size = response.getOutputSize()
         //val start = buffer.position()
 
@@ -328,6 +331,8 @@ abstract class HttpConnection(val worker: WebWorker,
         response.headers.forEach { header ->
             header.writeHeaderDirect(buffer, buffer.position())
         }
+
+//        ByteArrayResponseHeaderValue(HttpResponseHeader.Date, dateBytes).writeHeaderDirect(buffer, buffer.position())
 
         buffer.put(carriageByte)
         buffer.put(returnByte)

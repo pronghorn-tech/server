@@ -21,72 +21,72 @@ import java.time.format.DateTimeFormatter
 
 data class Potato(val message: String)
 
-private val headerDelimiterBytes = ": ".toByteArray(Charsets.US_ASCII)
-private val spaceByte = 32.toByte()
-private val carriageByte = 13.toByte()
-private val returnByte = 10.toByte()
-private val httpVersion = HttpVersion.HTTP11
-
-private var dateCache = ByteArray(0)
-private var latestDate = System.currentTimeMillis() % 1000
-private val gmt = ZoneId.of("GMT")
-
-fun getDateHeaderValue(): ByteArray {
-    val now = System.currentTimeMillis()
-    if (latestDate == now / 1000) {
-        return dateCache
-    } else {
-        latestDate = now / 1000
-        dateCache = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(gmt)).toByteArray(Charsets.US_ASCII)
-        return dateCache
-    }
-}
-
-fun writeHeader(headerType: HttpResponseHeader,
-                headerValue: ByteArray,
-                output: ByteArray,
-                offset: Int): Int {
-    val typeSize = headerType.bytes.size
-    val valueSize = headerValue.size
-    System.arraycopy(headerType.bytes, 0, output, offset, typeSize)
-    System.arraycopy(headerDelimiterBytes, 0, output, offset + typeSize, 2)
-    System.arraycopy(headerValue, 0, output, offset + typeSize + 2, valueSize)
-    val endOffset = offset + typeSize + 2 + valueSize
-    output[endOffset] = carriageByte
-    output[endOffset + 1] = returnByte
-    return typeSize + 2 + valueSize + 2
-}
-
-private val TMPLENGTHREMOVEME = "25".toByteArray(Charsets.US_ASCII)
-
-fun renderResponse(buffer: ByteBuffer,
-                         response: HttpResponse): Boolean {
-    val size = response.getOutputSize()
-    val start = buffer.position()
-
-    if (buffer.remaining() < size) {
-        return false
-    }
-
-    buffer.put(response.httpVersion.bytes)
-    buffer.put(tech.pronghorn.server.spaceByte)
-    buffer.put(response.code.bytes)
-    buffer.put(tech.pronghorn.server.carriageByte)
-    buffer.put(tech.pronghorn.server.returnByte)
-
-    response.headers.forEach { header ->
-        header.writeHeaderDirect(buffer, buffer.position())
-    }
-
-    buffer.put(tech.pronghorn.server.carriageByte)
-    buffer.put(tech.pronghorn.server.returnByte)
-
-    if (response.body.isNotEmpty()) {
-        buffer.put(response.body, 0, response.body.size)
-    }
-
-    return true
-}
+//private val headerDelimiterBytes = ": ".toByteArray(Charsets.US_ASCII)
+//private val spaceByte = 32.toByte()
+//private val carriageByte = 13.toByte()
+//private val returnByte = 10.toByte()
+//private val httpVersion = HttpVersion.HTTP11
+//
+//private var dateCache = ByteArray(0)
+//private var latestDate = System.currentTimeMillis() % 1000
+//private val gmt = ZoneId.of("GMT")
+//
+//fun getDateHeaderValue(): ByteArray {
+//    val now = System.currentTimeMillis()
+//    if (latestDate == now / 1000) {
+//        return dateCache
+//    } else {
+//        latestDate = now / 1000
+//        dateCache = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(gmt)).toByteArray(Charsets.US_ASCII)
+//        return dateCache
+//    }
+//}
+//
+//fun writeHeader(headerType: HttpResponseHeader,
+//                headerValue: ByteArray,
+//                output: ByteArray,
+//                offset: Int): Int {
+//    val typeSize = headerType.bytes.size
+//    val valueSize = headerValue.size
+//    System.arraycopy(headerType.bytes, 0, output, offset, typeSize)
+//    System.arraycopy(headerDelimiterBytes, 0, output, offset + typeSize, 2)
+//    System.arraycopy(headerValue, 0, output, offset + typeSize + 2, valueSize)
+//    val endOffset = offset + typeSize + 2 + valueSize
+//    output[endOffset] = carriageByte
+//    output[endOffset + 1] = returnByte
+//    return typeSize + 2 + valueSize + 2
+//}
+//
+//private val TMPLENGTHREMOVEME = "25".toByteArray(Charsets.US_ASCII)
+//
+//fun renderResponse(buffer: ByteBuffer,
+//                         response: HttpResponse): Boolean {
+//    val size = response.getOutputSize()
+//    val start = buffer.position()
+//
+//    if (buffer.remaining() < size) {
+//        return false
+//    }
+//
+//    buffer.put(response.httpVersion.bytes)
+//    buffer.put(tech.pronghorn.server.spaceByte)
+//    buffer.put(response.code.bytes)
+//    buffer.put(tech.pronghorn.server.carriageByte)
+//    buffer.put(tech.pronghorn.server.returnByte)
+//
+//    response.headers.forEach { header ->
+//        header.writeHeaderDirect(buffer, buffer.position())
+//    }
+//
+//    buffer.put(tech.pronghorn.server.carriageByte)
+//    buffer.put(tech.pronghorn.server.returnByte)
+//
+//    if (response.body.isNotEmpty()) {
+//        buffer.put(response.body, 0, response.body.size)
+//    }
+//
+//    return true
+//}
 
 class JsonTests : CDBTest() {
     @Test
@@ -123,7 +123,7 @@ class JsonTests : CDBTest() {
                         dummyConnection
                 )
 
-                renderResponse(buffer, response)
+                //renderResponse(buffer, response)
                 total += buffer.position()
 
                 x += 1
