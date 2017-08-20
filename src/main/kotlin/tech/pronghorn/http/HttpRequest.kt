@@ -2,7 +2,6 @@ package tech.pronghorn.http
 
 import mu.KotlinLogging
 import tech.pronghorn.http.protocol.*
-import tech.pronghorn.plugins.arrayHash.ArrayHashPlugin
 import tech.pronghorn.plugins.map.MapPlugin
 import tech.pronghorn.server.HttpConnection
 import java.nio.ByteBuffer
@@ -252,14 +251,6 @@ object HttpRequestParser {
 
             val headerType = StandardHttpRequestHeaders.find(buffer, lineStart, headerLength) ?:
                     CustomHttpRequestHeader(AsciiString(buffer, lineStart, headerLength))
-
-//            val headerType = if (headerLength < StandardHttpRequestHeaders.byLength.size) {
-//                val possibleHeader = StandardHttpRequestHeaders.byLength[headerLength]
-//                possibleHeader?.find { possible -> isEqual(possible.bytes, buffer, lineStart, headerLength) }
-//                        ?: CustomHttpRequestHeader(AsciiString(buffer, lineStart, headerLength))
-//            } else {
-//                CustomHttpRequestHeader(AsciiString(buffer, lineStart, headerLength))
-//            }
 
             val headerValue = AsciiString(buffer, valueStart, valueEnd - valueStart)
 

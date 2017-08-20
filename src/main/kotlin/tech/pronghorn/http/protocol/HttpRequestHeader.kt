@@ -242,22 +242,9 @@ enum class StandardHttpRequestHeaders(val _headerName: String,
     Via("via", "via".toByteArray(Charsets.US_ASCII)),
     Warning("warning", "warning".toByteArray(Charsets.US_ASCII));
 
-//    override fun getBytes(): ByteArray = _bytes
-
     override fun getHeaderName(): String = _headerName
 
     companion object: ByteBackedFinder<StandardHttpRequestHeaders> by standardHeaderFinder {
-//        private val maxLength = StandardHttpRequestHeaders.values().map { header -> header.bytes.size }.max() ?: 0
-//        val byLength = arrayOfNulls<Array<HttpRequestHeader>>(maxLength + 1)
-//
-//        init {
-//            var x = 0
-//            while (x < byLength.size) {
-//                byLength[x] = StandardHttpRequestHeaders.values().filter { header -> header.bytes.size == x }.toTypedArray()
-//                x += 1
-//            }
-//        }
-
         fun registerHeader(header: CustomHttpRequestHeader){
             TODO()
         }

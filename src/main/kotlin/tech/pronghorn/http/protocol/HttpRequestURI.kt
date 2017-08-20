@@ -304,7 +304,6 @@ class StringLocationHttpRequestURI(private val path: AsciiString?,
     override fun getQueryParams(): List<QueryParam>? {
         return null
     }
-
 }
 
 class ValueHttpRequestURI(private val path: String,

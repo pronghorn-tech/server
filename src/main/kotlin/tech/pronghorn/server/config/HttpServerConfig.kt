@@ -12,6 +12,6 @@ import java.net.InetSocketAddress
  * @param address : The address to bind to.
  * @param workerCount : The number of worker threads to utilize, should likely be the number of cores available.
  */
-data class WebServerConfig(val address: InetSocketAddress,
-                           val workerCount: Int,
-                           val serverName: String = "Pronghorn")
+data class HttpServerConfig(val address: InetSocketAddress,
+                            val workerCount: Int = Runtime.getRuntime().availableProcessors(),
+                            val serverName: String = "Pronghorn")

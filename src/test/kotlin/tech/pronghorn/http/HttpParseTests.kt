@@ -1,11 +1,7 @@
 package tech.pronghorn.http
 
-import tech.pronghorn.http.HttpRequest
-import tech.pronghorn.http.HttpRequestParser
-import tech.pronghorn.http.InvalidMethodParseError
-import tech.pronghorn.http.InvalidVersionParseError
-import tech.pronghorn.http.protocol.HttpMethod
 import org.junit.Test
+import tech.pronghorn.http.protocol.HttpMethod
 import tech.pronghorn.test.CDBTest
 import java.nio.ByteBuffer
 import kotlin.test.assertEquals

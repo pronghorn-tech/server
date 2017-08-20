@@ -3,10 +3,9 @@ package tech.pronghorn.server
 import tech.pronghorn.coroutines.awaitable.QueueWriter
 import tech.pronghorn.coroutines.core.CoroutineWorker
 import tech.pronghorn.coroutines.core.InterWorkerMessage
-import tech.pronghorn.plugins.arrayHash.ArrayHashPlugin
 import tech.pronghorn.plugins.concurrentMap.ConcurrentMapPlugin
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
-import tech.pronghorn.server.config.WebServerConfig
+import tech.pronghorn.server.config.HttpServerConfig
 import tech.pronghorn.server.core.HttpRequestHandler
 import tech.pronghorn.server.services.ServerConnectionCreationService
 import java.io.IOException
@@ -16,7 +15,7 @@ import java.util.concurrent.locks.ReentrantLock
 data class RegisterURLHandlerMessage(val url: String,
                                      val handlerGenerator: () -> HttpRequestHandler) : InterWorkerMessage
 
-class HttpServer(val config: WebServerConfig) {
+class HttpServer(val config: HttpServerConfig) {
     private val logger = mu.KotlinLogging.logger {}
     private val serverSocket: ServerSocketChannel = ServerSocketChannel.open()
     private val workers = ConcurrentSetPlugin.get<HttpServerWorker>()
@@ -34,8 +33,6 @@ class HttpServer(val config: WebServerConfig) {
             workers.add(worker)
         }
     }
-
-    private val hashFunction = ArrayHashPlugin.get()
 
     fun start() {
         logger.debug { "Starting server on ${config.address} with ${config.workerCount} workers" }
@@ -91,26 +88,6 @@ class HttpServer(val config: WebServerConfig) {
                     handler: HttpRequestHandler) {
         registerUrl(url, { handler })
     }
-
-//    internal fun attemptAccept() {
-//        if(acceptLock.tryLock()) {
-//            try {
-//                val acceptedSocket: SocketChannel? = serverSocket.accept()
-//                if (acceptedSocket != null) {
-//                    acceptedSocket.configureBlocking(false)
-//                    var handled = false
-//                    while (!handled) {
-//                        val worker = getBestWorker()
-//                        val workerWriter = workerSocketWriters.getOrPut(worker, { worker.requestSingleExternalWriter<SocketChannel, ServerConnectionCreationService>() })
-//                        handled = workerWriter.offer(acceptedSocket)
-//                    }
-//                }
-//            }
-//            finally {
-//                acceptLock.unlock()
-//            }
-//        }
-//    }
 
     val acceptGrouping = 128
 

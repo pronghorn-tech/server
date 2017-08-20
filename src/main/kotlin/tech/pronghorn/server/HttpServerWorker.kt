@@ -7,7 +7,7 @@ import tech.pronghorn.coroutines.service.Service
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.bufferpools.ConnectionBufferPool
 import tech.pronghorn.server.bufferpools.HandshakeBufferPool
-import tech.pronghorn.server.config.WebServerConfig
+import tech.pronghorn.server.config.HttpServerConfig
 import tech.pronghorn.server.config.WebsocketClientConfig
 import tech.pronghorn.server.core.HttpRequestHandler
 import tech.pronghorn.server.services.*
@@ -141,7 +141,7 @@ data class URLHandlerMapping(val url: ByteArray,
 }
 
 class HttpServerWorker(private val server: HttpServer,
-                       private val config: WebServerConfig) : WebWorker() {
+                       private val config: HttpServerConfig) : WebWorker() {
     override val logger = KotlinLogging.logger {}
     private val serverKey = server.registerAcceptWorker(selector)
     private val connectionCreationService = ServerConnectionCreationService(this, selector)

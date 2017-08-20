@@ -6,7 +6,7 @@ import org.junit.Test
 import tech.pronghorn.http.*
 import tech.pronghorn.http.protocol.*
 import tech.pronghorn.server.*
-import tech.pronghorn.server.config.WebServerConfig
+import tech.pronghorn.server.config.HttpServerConfig
 import tech.pronghorn.server.core.HttpRequestHandler
 import tech.pronghorn.stats.StatTracker
 import tech.pronghorn.test.CDBTest
@@ -236,7 +236,7 @@ class HttpServerTests : CDBTest() {
             val batchCount = 128 * 128
 
             val counterHandler = HttpCounterHandler()
-            val serverConfig = WebServerConfig(address, serverThreadCount)
+            val serverConfig = HttpServerConfig(address, serverThreadCount)
 
             val server = HttpServer(serverConfig)
 
@@ -245,21 +245,6 @@ class HttpServerTests : CDBTest() {
 //                server.registerUrl("/plain$u", counterHandler)
 //                u += 1
 //            }
-
-//            server.registerUrl("/plaintex1", counterHandler)
-//            server.registerUrl("/plaintex2", counterHandler)
-//            server.registerUrl("/plaintex3", counterHandler)
-//            server.registerUrl("/plaintex4", counterHandler)
-//            server.registerUrl("/plaintex5", counterHandler)
-//            server.registerUrl("/plaintex6", counterHandler)
-//            server.registerUrl("/plaintex7", counterHandler)
-//            server.registerUrl("/plaintex8", counterHandler)
-//            server.registerUrl("/plaintex9", counterHandler)
-//            server.registerUrl("/plaintexa", counterHandler)
-//            server.registerUrl("/plaintexb", counterHandler)
-//            server.registerUrl("/plaintexc", counterHandler)
-//            server.registerUrl("/plaintexd", counterHandler)
-//            server.registerUrl("/plaintexe", counterHandler)
 
             server.registerUrl("/plaintext", counterHandler)
 

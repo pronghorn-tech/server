@@ -495,7 +495,7 @@ class HttpClientConnection(worker: HttpClientWorker,
     }
 }
 
-class DummyConnection(worker: WebWorker,
+internal class DummyConnection(worker: WebWorker,
                       socket: SocketChannel,
                       selectionKey: SelectionKey) : HttpConnection(worker, socket, selectionKey) {
 

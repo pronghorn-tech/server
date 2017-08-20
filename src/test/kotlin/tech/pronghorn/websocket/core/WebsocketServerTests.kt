@@ -1,33 +1,11 @@
 package tech.pronghorn.websocket.core
 
-import tech.pronghorn.stats.StatTracker
-import tech.pronghorn.websocket.protocol.*
-import tech.pronghorn.server.*
-import tech.pronghorn.server.config.WebsocketClientConfig
-import tech.pronghorn.server.config.WebServerConfig
-import tech.pronghorn.coroutines.service.Service
-import mu.KotlinLogging
-import java.io.OutputStreamWriter
-import java.net.InetSocketAddress
-import java.nio.ByteBuffer
-import java.nio.channels.SelectionKey
-import java.nio.channels.Selector
-import java.nio.channels.SocketChannel
-import java.nio.charset.StandardCharsets
-import java.util.*
-import kotlin.concurrent.thread
-import kotlin.system.measureTimeMillis
-
 //import graphql.Scalars.*
 //import graphql.*
 //import graphql.execution.SimpleExecutionStrategy
 //import graphql.schema.GraphQLFieldDefinition.newFieldDefinition
 //import graphql.schema.GraphQLObjectType.newObject
 //import graphql.schema.*
-import java.sql.ResultSet
-import kotlin.reflect.KType
-import kotlin.reflect.full.isSubclassOf
-import kotlin.reflect.jvm.jvmErasure
 
 /*
 object GraphQLParser {
@@ -518,7 +496,7 @@ class WebsocketServerTests : CDBTest() {
         writer.flush()
     }
 
-    val noopConfig = WebServerConfig(address,/* { noopFrameHandler },*/ 1)
+    val noopConfig = HttpServerConfig(address,/* { noopFrameHandler },*/ 1)
 
     init {
         "servers" should "accept incoming connections" {
@@ -572,7 +550,7 @@ class WebsocketServerTests : CDBTest() {
                 val batchCount = 128 * 16
 
                 val counterHandlers = mutableListOf<CounterHandler>()
-                val serverConfig = WebServerConfig(address, serverThreadCount)
+                val serverConfig = HttpServerConfig(address, serverThreadCount)
 
                 val server = HttpServer(serverConfig)
                 server.start()
@@ -684,7 +662,7 @@ class WebsocketServerTests : CDBTest() {
                 val batchCount = 128 * 16
 
                 val counterHandlers = mutableListOf<CounterHandler>()
-                val serverConfig = WebServerConfig(address, serverThreadCount)
+                val serverConfig = HttpServerConfig(address, serverThreadCount)
 
                 val server = HttpServer(serverConfig)
                 server.start()
