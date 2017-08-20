@@ -1,7 +1,10 @@
-package com.http.protocol
+package tech.pronghorn.http.protocol
 
-import com.http.StringLocation
+import tech.pronghorn.http.AsciiString
+import tech.pronghorn.util.finder.ByteBacked
+import tech.pronghorn.util.finder.ByteBackedFinder
 import tech.pronghorn.util.Either
+import tech.pronghorn.util.finder.FinderGenerator
 
 //data class HttpRequestHeader(val headerName: String,
 //                              val bytes: ByteArray) {
@@ -175,18 +178,17 @@ import tech.pronghorn.util.Either
 //    }
 //}
 //
-interface HttpRequestHeader {
-    val _bytes: ByteArray
+interface HttpRequestHeader: ByteBacked {
     fun getHeaderName(): String
-    fun getBytes(): ByteArray
+//    fun getBytes(): ByteArray
 }
 
-class CustomHttpRequestHeader(private val value: Either<StringLocation, String>) : HttpRequestHeader {
-    constructor(location: StringLocation): this(Either.Left(location))
+class CustomHttpRequestHeader(private val value: Either<AsciiString, String>) : HttpRequestHeader {
+    constructor(location: AsciiString): this(Either.Left(location))
 
     constructor(name: String): this(Either.Right(name))
 
-    override val _bytes = ByteArray(0)
+    override val bytes = ByteArray(0)
 
     override fun getHeaderName(): String {
         when(value) {
@@ -195,16 +197,16 @@ class CustomHttpRequestHeader(private val value: Either<StringLocation, String>)
         }
     }
 
-    override fun getBytes(): ByteArray {
-        when(value) {
-            is Either.Left -> return value.value.toByteArray()
-            is Either.Right -> return value.value.toByteArray(Charsets.US_ASCII)
-        }
-    }
+//    override fun getBytes(): ByteArray {
+//        when(value) {
+//            is Either.Left -> TODO() //return value.value.toByteArray()
+//            is Either.Right -> return value.value.toByteArray(Charsets.US_ASCII)
+//        }
+//    }
 }
 
 enum class StandardHttpRequestHeaders(val _headerName: String,
-                                      override val _bytes: ByteArray) : HttpRequestHeader {
+                                      override val bytes: ByteArray) : HttpRequestHeader {
     Accept("accept", "accept".toByteArray(Charsets.US_ASCII)),
     AcceptCharset("accept-charset", "accept-charset".toByteArray(Charsets.US_ASCII)),
     AcceptEncoding("accept-encoding", "accept-encoding".toByteArray(Charsets.US_ASCII)),
@@ -240,24 +242,26 @@ enum class StandardHttpRequestHeaders(val _headerName: String,
     Via("via", "via".toByteArray(Charsets.US_ASCII)),
     Warning("warning", "warning".toByteArray(Charsets.US_ASCII));
 
-    override fun getBytes(): ByteArray = _bytes
+//    override fun getBytes(): ByteArray = _bytes
 
     override fun getHeaderName(): String = _headerName
 
-    companion object {
-        private val maxLength = StandardHttpRequestHeaders.values().map { method -> method.getBytes().size }.max() ?: 0
-        val byLength = arrayOfNulls<Array<HttpRequestHeader>>(maxLength + 1)
-
-        init {
-            var x = 0
-            while (x < byLength.size) {
-                byLength[x] = StandardHttpRequestHeaders.values().filter { method -> method.getBytes().size == x }.toTypedArray()
-                x += 1
-            }
-        }
+    companion object: ByteBackedFinder<StandardHttpRequestHeaders> by standardHeaderFinder {
+//        private val maxLength = StandardHttpRequestHeaders.values().map { header -> header.bytes.size }.max() ?: 0
+//        val byLength = arrayOfNulls<Array<HttpRequestHeader>>(maxLength + 1)
+//
+//        init {
+//            var x = 0
+//            while (x < byLength.size) {
+//                byLength[x] = StandardHttpRequestHeaders.values().filter { header -> header.bytes.size == x }.toTypedArray()
+//                x += 1
+//            }
+//        }
 
         fun registerHeader(header: CustomHttpRequestHeader){
-
+            TODO()
         }
     }
 }
+
+private val standardHeaderFinder = FinderGenerator.generateFinder(StandardHttpRequestHeaders.values())

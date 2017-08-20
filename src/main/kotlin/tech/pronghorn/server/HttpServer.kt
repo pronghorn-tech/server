@@ -2,40 +2,45 @@ package tech.pronghorn.server
 
 import tech.pronghorn.coroutines.awaitable.QueueWriter
 import tech.pronghorn.coroutines.core.CoroutineWorker
+import tech.pronghorn.coroutines.core.InterWorkerMessage
+import tech.pronghorn.plugins.arrayHash.ArrayHashPlugin
 import tech.pronghorn.plugins.concurrentMap.ConcurrentMapPlugin
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.config.WebServerConfig
 import tech.pronghorn.server.core.HttpRequestHandler
 import tech.pronghorn.server.services.ServerConnectionCreationService
 import java.io.IOException
-import java.nio.channels.SelectionKey
-import java.nio.channels.Selector
-import java.nio.channels.ServerSocketChannel
-import java.nio.channels.SocketChannel
+import java.nio.channels.*
 import java.util.concurrent.locks.ReentrantLock
 
-class WebServer(val config: WebServerConfig,
-                val handler: HttpRequestHandler) {
+data class RegisterURLHandlerMessage(val url: String,
+                                     val handlerGenerator: () -> HttpRequestHandler) : InterWorkerMessage
+
+class HttpServer(val config: WebServerConfig) {
     private val logger = mu.KotlinLogging.logger {}
     private val serverSocket: ServerSocketChannel = ServerSocketChannel.open()
-    private val workers = ConcurrentSetPlugin.get<WebServerWorker>()
-    private val workerSocketWriters = ConcurrentMapPlugin.get<WebServerWorker, QueueWriter<SocketChannel>>()
+    private val workers = ConcurrentSetPlugin.get<HttpServerWorker>()
+    private val workerSocketWriters = ConcurrentMapPlugin.get<HttpServerWorker, QueueWriter<SocketChannel>>()
     private var lastWorkerID = 0
     private val acceptLock = ReentrantLock()
     init { serverSocket.configureBlocking(false) }
     val serverBytes = config.serverName.toByteArray(Charsets.US_ASCII)
     var isRunning = false
 
-    fun start() {
-        logger.debug { "Starting server on ${config.address} with $${config.workerCount} workers" }
-        isRunning = true
-        serverSocket.socket().bind(config.address, 128)
-
+    init {
         for (x in 1..config.workerCount) {
-            val worker = WebServerWorker(this, config, handler)
+            val worker = HttpServerWorker(this, config)
             workerSocketWriters.put(worker, worker.requestSingleExternalWriter<SocketChannel, ServerConnectionCreationService>())
             workers.add(worker)
         }
+    }
+
+    private val hashFunction = ArrayHashPlugin.get()
+
+    fun start() {
+        logger.debug { "Starting server on ${config.address} with ${config.workerCount} workers" }
+        isRunning = true
+        serverSocket.socket().bind(config.address, 128)
 
         workers.forEach(CoroutineWorker::start)
     }
@@ -44,7 +49,7 @@ class WebServer(val config: WebServerConfig,
         logger.info("Server on ${config.address} shutting down")
         isRunning = false
         try {
-            workers.forEach(WebServerWorker::shutdown)
+            workers.forEach(HttpServerWorker::shutdown)
         }
         catch (ex: Exception){
             ex.printStackTrace()
@@ -57,22 +62,34 @@ class WebServer(val config: WebServerConfig,
 
     fun getPendingConnectionCount(): Int {
         throw Exception("No longer valid")
-        workers.map(WebServerWorker::getPendingConnectionCount).sum()
+        workers.map(HttpServerWorker::getPendingConnectionCount).sum()
     }
 
     fun getActiveConnectionCount(): Int {
         throw Exception("No longer valid")
-        workers.map(WebServerWorker::getActiveConnectionCount).sum()
+        workers.map(HttpServerWorker::getActiveConnectionCount).sum()
     }
 
-    fun getConnectionCount(): Int = workers.map(WebServerWorker::getConnectionCount).sum()
+    fun getConnectionCount(): Int = workers.map(HttpServerWorker::getConnectionCount).sum()
 
     fun registerAcceptWorker(selector: Selector): SelectionKey {
         return serverSocket.register(selector, SelectionKey.OP_ACCEPT)
     }
 
-    private fun getBestWorker(): WebServerWorker {
+    private fun getBestWorker(): HttpServerWorker {
         return workers.elementAt(lastWorkerID++ % config.workerCount)
+    }
+
+    fun registerUrl(url: String,
+                    handlerGenerator: () -> HttpRequestHandler){
+        workers.forEach { worker ->
+            worker.sendInterWorkerMessage(RegisterURLHandlerMessage(url, handlerGenerator))
+        }
+    }
+
+    fun registerUrl(url: String,
+                    handler: HttpRequestHandler) {
+        registerUrl(url, { handler })
     }
 
 //    internal fun attemptAccept() {
@@ -106,6 +123,7 @@ class WebServer(val config: WebServerConfig,
                 while (acceptedSocket != null) {
                     accepted += 1
                     acceptedSocket.configureBlocking(false)
+                    acceptedSocket.socket().tcpNoDelay = true
                     var handled = false
                     while (!handled) {
                         val worker = getBestWorker()
@@ -131,7 +149,7 @@ class WebServer(val config: WebServerConfig,
 //    override fun finalize() {
 //        super.finalize()
 //        if(serverSocket.isOpen){
-//            println("FAILED TO CLOSE SOCKET WebServer")
+//            println("FAILED TO CLOSE SOCKET HttpServer")
 //            System.exit(1)
 //        }
 //    }

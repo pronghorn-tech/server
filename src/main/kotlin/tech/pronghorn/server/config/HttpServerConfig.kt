@@ -3,7 +3,7 @@ package tech.pronghorn.server.config
 import java.net.InetSocketAddress
 
 /**
- * Configuration for a WebServer.
+ * Configuration for a HttpServer.
  * The primary constructor takes a function that produces a FrameHandler, use this if the provided FrameHandler class
  * has mutable state that is not thread safe.
 

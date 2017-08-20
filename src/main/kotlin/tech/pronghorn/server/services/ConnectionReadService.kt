@@ -1,7 +1,7 @@
 package tech.pronghorn.server.services
 
-import com.http.HttpRequest
-import com.http.HttpRequestParser
+import tech.pronghorn.http.HttpRequest
+import tech.pronghorn.http.HttpRequestParser
 import mu.KotlinLogging
 import tech.pronghorn.coroutines.service.InternalQueueService
 import tech.pronghorn.websocket.protocol.FrameParser

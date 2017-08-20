@@ -1,15 +1,13 @@
 package tech.pronghorn.server.services
 
-import com.http.HttpRequest
 import mu.KotlinLogging
 import tech.pronghorn.coroutines.awaitable.ServiceManagedCoroutineContext
-import tech.pronghorn.coroutines.core.CoroutineWorker
 import tech.pronghorn.coroutines.service.InternalQueueService
+import tech.pronghorn.http.HttpRequest
 import tech.pronghorn.http.HttpResponse
-import tech.pronghorn.server.core.HttpRequestHandler
+import tech.pronghorn.server.HttpServerWorker
 
-class HttpRequestHandlerPerRequestService(override val worker: CoroutineWorker,
-                                          val requestHandler: HttpRequestHandler) : InternalQueueService<HttpRequest>() {
+class HttpRequestHandlerPerRequestService(override val worker: HttpServerWorker) : InternalQueueService<HttpRequest>() {
     override val logger = KotlinLogging.logger {}
     private val context = ServiceManagedCoroutineContext(this)
     private val writer by lazy(LazyThreadSafetyMode.NONE) {
@@ -17,8 +15,14 @@ class HttpRequestHandlerPerRequestService(override val worker: CoroutineWorker,
     }
 
     override suspend fun process(request: HttpRequest): Boolean {
-        val response = requestHandler.handleRequest(request)
-        writer.addAsync(response)
+        val handler = worker.getHandler(request.url.getPathBytes())
+        if(handler == null){
+            TODO()
+        }
+        else {
+            val response = handler.handleRequest(request)
+            writer.addAsync(response)
+        }
         return true
     }
 }

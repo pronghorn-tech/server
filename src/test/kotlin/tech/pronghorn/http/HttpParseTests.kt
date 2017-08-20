@@ -1,10 +1,10 @@
 package tech.pronghorn.http
 
-import com.http.HttpRequest
-import com.http.HttpRequestParser
-import com.http.InvalidMethodParseError
-import com.http.InvalidVersionParseError
-import com.http.protocol.HttpMethod
+import tech.pronghorn.http.HttpRequest
+import tech.pronghorn.http.HttpRequestParser
+import tech.pronghorn.http.InvalidMethodParseError
+import tech.pronghorn.http.InvalidVersionParseError
+import tech.pronghorn.http.protocol.HttpMethod
 import org.junit.Test
 import tech.pronghorn.test.CDBTest
 import java.nio.ByteBuffer

@@ -1,8 +1,8 @@
 package tech.pronghorn.server.core
 
-import com.http.HttpRequest
+import tech.pronghorn.http.HttpRequest
 import tech.pronghorn.http.HttpResponse
-import com.http.protocol.HttpMethod
+import tech.pronghorn.http.protocol.HttpMethod
 
 abstract class HttpRequestHandler {
     internal suspend fun handleRequest(request: HttpRequest): HttpResponse {

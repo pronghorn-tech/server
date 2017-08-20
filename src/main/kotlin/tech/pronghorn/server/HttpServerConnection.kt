@@ -1,13 +1,12 @@
 package tech.pronghorn.server
 
-import com.http.HttpRequest
+import tech.pronghorn.http.HttpRequest
 import mu.KotlinLogging
 import tech.pronghorn.coroutines.awaitable.InternalFuture
 import tech.pronghorn.coroutines.awaitable.InternalQueue
 import tech.pronghorn.http.HttpResponse
 import tech.pronghorn.plugins.spscQueue.SpscQueuePlugin
 import tech.pronghorn.server.bufferpools.PooledByteBuffer
-import tech.pronghorn.server.core.HttpRequestHandler
 import tech.pronghorn.server.services.HttpRequestHandlerService
 import tech.pronghorn.server.services.ResponseWriterService
 import tech.pronghorn.util.runAllIgnoringExceptions
@@ -241,11 +240,17 @@ abstract class HttpConnection(val worker: WebWorker,
         queuedRequestsWriter.addAsync(request)
     }
 
-    suspend fun handleRequests(requestHandler: HttpRequestHandler) {
+    suspend fun handleRequests(worker: HttpServerWorker) {
         var request = queuedRequestsReader.poll()
         while (request != null) {
-            val response = requestHandler.handleRequest(request)
-            appendResponse(response)
+            val handler = worker.getHandler(request.url.getPathBytes())
+            if(handler == null){
+                logger.error("Could not fetch url: ${request.url.getPath()}")
+            }
+            else {
+                val response = handler.handleRequest(request)
+                appendResponse(response)
+            }
             request = queuedRequestsReader.poll()
         }
     }
@@ -413,7 +418,7 @@ abstract class HttpConnection(val worker: WebWorker,
 //    }
 }
 
-class HttpServerConnection(worker: WebServerWorker,
+class HttpServerConnection(worker: HttpServerWorker,
                            socket: SocketChannel,
                            selectionKey: SelectionKey) : HttpConnection(worker, socket, selectionKey) {
     override val shouldSendMasked: Boolean = false
@@ -439,7 +444,7 @@ class HttpServerConnection(worker: WebServerWorker,
     }
 }
 
-class HttpClientConnection(worker: WebClientWorker,
+class HttpClientConnection(worker: HttpClientWorker,
                            socket: SocketChannel,
                            selectionKey: SelectionKey,
                            private val readyPromise: InternalFuture.InternalPromise<HttpClientConnection>) : HttpConnection(worker, socket, selectionKey) {

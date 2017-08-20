@@ -1,4 +1,4 @@
-package com.http.protocol
+package tech.pronghorn.http.protocol
 
 enum class HttpResponseCode(val value: Int,
                             val codeName: String,

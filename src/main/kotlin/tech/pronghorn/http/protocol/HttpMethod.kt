@@ -1,6 +1,10 @@
-package com.http.protocol
+package tech.pronghorn.http.protocol
 
-enum class HttpMethod(val bytes: ByteArray) {
+import tech.pronghorn.util.finder.ByteBacked
+import tech.pronghorn.util.finder.ByteBackedFinder
+import tech.pronghorn.util.finder.FinderGenerator
+
+enum class HttpMethod(override val bytes: ByteArray): ByteBacked {
     CONNECT("CONNECT".toByteArray(Charsets.US_ASCII)),
     DELETE("DELETE".toByteArray(Charsets.US_ASCII)),
     GET("GET".toByteArray(Charsets.US_ASCII)),
@@ -11,15 +15,7 @@ enum class HttpMethod(val bytes: ByteArray) {
     PUT("PUT".toByteArray(Charsets.US_ASCII)),
     TRACE("TRACE".toByteArray(Charsets.US_ASCII));
 
-    companion object {
-        private val maxLength = HttpMethod.values().map { method -> method.bytes.size }.max() ?: 0
-        val byLength = arrayOfNulls<Array<HttpMethod>>(maxLength)
-        init {
-            var x = 0
-            while(x < byLength.size){
-                byLength[x] = HttpMethod.values().filter { method -> method.bytes.size == x }.toTypedArray()
-                x += 1
-            }
-        }
-    }
+    companion object : ByteBackedFinder<HttpMethod> by httpMethodFinder
 }
+
+private val httpMethodFinder = FinderGenerator.generateFinder(HttpMethod.values())

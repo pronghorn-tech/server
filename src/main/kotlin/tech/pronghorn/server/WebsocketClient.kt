@@ -17,14 +17,14 @@ class PendingClientConnection(val socket: SocketChannel,
 
 class WebsocketClient(val config: WebsocketClientConfig) {
     private val logger = KotlinLogging.logger {}
-    private val workers = ConcurrentSetPlugin.get<WebClientWorker>()
-    private val workerSocketWriters = ConcurrentMapPlugin.get<WebClientWorker, QueueWriter<PendingClientConnection>>()
+    private val workers = ConcurrentSetPlugin.get<HttpClientWorker>()
+    private val workerSocketWriters = ConcurrentMapPlugin.get<HttpClientWorker, QueueWriter<PendingClientConnection>>()
     private var lastWorkerID = 0
     private var hasStarted = false
 
     private fun start() {
         for (x in 1..config.workerCount) {
-            val worker = WebClientWorker(config)
+            val worker = HttpClientWorker(config)
             workers.add(worker)
         }
 
@@ -39,7 +39,7 @@ class WebsocketClient(val config: WebsocketClientConfig) {
 
     fun getActiveConnectionCount(): Int = workers.map(WebWorker::getActiveConnectionCount).sum()
 
-    private fun getBestWorker(): WebClientWorker {
+    private fun getBestWorker(): HttpClientWorker {
         return workers.elementAt(lastWorkerID++ % config.workerCount)
     }
 

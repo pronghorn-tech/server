@@ -1,8 +1,8 @@
 package tech.pronghorn.http
 
-import com.http.HttpVersion
-import com.http.protocol.HttpResponseCode
-import com.http.protocol.HttpResponseHeader
+import tech.pronghorn.http.protocol.HttpVersion
+import tech.pronghorn.http.protocol.HttpResponseCode
+import tech.pronghorn.http.protocol.HttpResponseHeader
 import tech.pronghorn.server.*
 import java.nio.ByteBuffer
 

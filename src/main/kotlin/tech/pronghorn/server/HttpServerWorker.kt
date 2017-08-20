@@ -2,6 +2,7 @@ package tech.pronghorn.server
 
 import mu.KotlinLogging
 import tech.pronghorn.coroutines.core.CoroutineWorker
+import tech.pronghorn.coroutines.core.InterWorkerMessage
 import tech.pronghorn.coroutines.service.Service
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.bufferpools.ConnectionBufferPool
@@ -10,11 +11,15 @@ import tech.pronghorn.server.config.WebServerConfig
 import tech.pronghorn.server.config.WebsocketClientConfig
 import tech.pronghorn.server.core.HttpRequestHandler
 import tech.pronghorn.server.services.*
-import tech.pronghorn.util.runAllIgnoringExceptions
+import tech.pronghorn.util.*
+import tech.pronghorn.util.finder.ByteBacked
+import tech.pronghorn.util.finder.ByteBackedFinder
+import tech.pronghorn.util.finder.FinderGenerator
 import java.nio.channels.SelectionKey
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.util.*
 
 sealed class WebWorker : CoroutineWorker() {
     //    protected val pendingConnections = NonBlockingHashSet<HttpConnection>()
@@ -58,7 +63,7 @@ sealed class WebWorker : CoroutineWorker() {
         runAllIgnoringExceptions({ allConnections.forEach({ it.close("Server is shutting down.") }) })
     }
 
-    //    protected val handshakeTimeoutService = HandshakeTimeoutService(this, pendingConnections, handshakeTimeout)
+//    protected val handshakeTimeoutService = HandshakeTimeoutService(this, pendingConnections, handshakeTimeout)
 //    protected val frameHandlerService = FrameHandlerService(this, frameHandler)
     protected val handshakeService = HandshakeService(this)
     protected val connectionReadService = ConnectionReadService(this)
@@ -73,7 +78,7 @@ sealed class WebWorker : CoroutineWorker() {
 
     protected val commonServices = listOf(
             handshakeService,
-            //        handshakeTimeoutService,
+//        handshakeTimeoutService,
 //        frameHandlerService,
             connectionReadService
     )
@@ -94,7 +99,7 @@ sealed class WebWorker : CoroutineWorker() {
     }
 }
 
-class WebClientWorker(config: WebsocketClientConfig) : WebWorker() {
+class HttpClientWorker(config: WebsocketClientConfig) : WebWorker() {
     override val logger = KotlinLogging.logger {}
     private val connectionCreationService = ClientConnectionCreationService(this, selector, config.randomGeneratorBuilder())
     private val connectionFinisherService = WebsocketConnectionFinisherService(this, selector, config.randomGeneratorBuilder())
@@ -130,16 +135,23 @@ class WebClientWorker(config: WebsocketClientConfig) : WebWorker() {
     }
 }
 
-class WebServerWorker(private val server: WebServer,
-                      private val config: WebServerConfig,
-                      handler: HttpRequestHandler) : WebWorker() {
+data class URLHandlerMapping(val url: ByteArray,
+                             val handler: HttpRequestHandler): ByteBacked {
+    override val bytes = url
+}
+
+class HttpServerWorker(private val server: HttpServer,
+                       private val config: WebServerConfig) : WebWorker() {
     override val logger = KotlinLogging.logger {}
     private val serverKey = server.registerAcceptWorker(selector)
     private val connectionCreationService = ServerConnectionCreationService(this, selector)
-    private val httpRequestHandlerService = HttpRequestHandlerService(this, handler)
+    private val httpRequestHandlerService = HttpRequestHandlerService(this)
     private val responseService = ResponseWriterPerRequestService(this)
-    private val handlerService = HttpRequestHandlerPerRequestService(this, handler)
+    private val handlerService = HttpRequestHandlerPerRequestService(this)
     private val responseWriterService = ResponseWriterService(this)
+    private val handlers = HashMap<Int, URLHandlerMapping>()
+    private val handlerMapping: Array<URLHandlerMapping?> = arrayOfNulls(16)
+    private var handlerCount = 0
 
     override val services: List<Service> = listOf(
             connectionCreationService,
@@ -148,6 +160,28 @@ class WebServerWorker(private val server: WebServer,
             handlerService,
             responseService
     ).plus(commonServices)
+
+    private var handlerFinder: ByteBackedFinder<URLHandlerMapping> = FinderGenerator.generateFinder(handlers.values.toTypedArray())
+
+    fun getHandler(urlBytes: ByteArray): HttpRequestHandler? = handlerFinder.find(urlBytes)?.handler
+
+    fun addURLHandler(url: String,
+                      handlerGenerator: () -> HttpRequestHandler){
+        val urlBytes = url.toByteArray(Charsets.US_ASCII)
+        val handler = handlerGenerator()
+
+        handlers.put(Arrays.hashCode(urlBytes), URLHandlerMapping(urlBytes, handler))
+        handlerFinder = FinderGenerator.generateFinder(handlers.values.toTypedArray())
+    }
+
+    override fun handleMessage(message: InterWorkerMessage): Boolean {
+        if(message is RegisterURLHandlerMessage){
+            addURLHandler(message.url, message.handlerGenerator)
+            return true
+        }
+
+        return false
+    }
 
     override fun processKey(key: SelectionKey): Unit {
         if (key == serverKey && key.isAcceptable) {

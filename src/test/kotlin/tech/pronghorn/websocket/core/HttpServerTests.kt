@@ -1,34 +1,21 @@
 package tech.pronghorn.websocket.core
 
-import com.http.HttpRequest
-import com.http.HttpVersion
-import com.http.StringLocation
-import com.http.protocol.HttpResponseCode
-import com.http.protocol.HttpResponseHeader
-import com.jsoniter.output.JsonStream
 import eventually
 import mu.KotlinLogging
 import org.junit.Test
-import tech.pronghorn.coroutines.service.Service
-import tech.pronghorn.http.ByteArrayResponseHeaderValue
-import tech.pronghorn.http.HttpResponse
-import tech.pronghorn.http.HttpResponseHeaderValue
-import tech.pronghorn.http.NumericResponseHeaderValue
-import tech.pronghorn.http.protocol.CommonMimeTypes
+import tech.pronghorn.http.*
+import tech.pronghorn.http.protocol.*
 import tech.pronghorn.server.*
-import tech.pronghorn.stats.StatTracker
-import tech.pronghorn.test.CDBTest
 import tech.pronghorn.server.config.WebServerConfig
 import tech.pronghorn.server.core.HttpRequestHandler
+import tech.pronghorn.stats.StatTracker
+import tech.pronghorn.test.CDBTest
 import java.net.InetSocketAddress
-import java.net.SocketOptions
-import java.net.URI
-import java.net.URLDecoder
 import java.nio.ByteBuffer
 import java.nio.channels.SelectionKey
-import java.nio.channels.Selector
 import java.nio.channels.SocketChannel
 import java.time.Duration
+import java.util.*
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.concurrent.thread
 import kotlin.system.measureTimeMillis
@@ -37,9 +24,9 @@ import kotlin.test.assertTrue
 
 data class JsonExample(val message: String)
 
-class HttpCounterHandler: HttpRequestHandler() {
+class HttpCounterHandler : HttpRequestHandler() {
     private val logger = KotlinLogging.logger {}
-    var server: WebServer? = null
+    var server: HttpServer? = null
     val stats = StatTracker()
     //var requestsHandled = 0L
     val requestsHandled = AtomicLong(0)
@@ -50,6 +37,7 @@ class HttpCounterHandler: HttpRequestHandler() {
     val dateBytes = "Tue, 15 Aug 2017 00:28:37 GMT".toByteArray(Charsets.US_ASCII)
 
     val staticHeaders = ArrayList<HttpResponseHeaderValue<*>>(8)
+
     init {
         staticHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.Server, serverBytes))
 //        staticHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.ContentType, CommonMimeTypes.ApplicationJson.bytes))
@@ -63,6 +51,10 @@ class HttpCounterHandler: HttpRequestHandler() {
         val tmpHeaders = ArrayList<HttpResponseHeaderValue<*>>()
         tmpHeaders.add(NumericResponseHeaderValue(HttpResponseHeader.ContentLength, contentBytes.size))
         tmpHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.Server, serverBytes))
+
+//        tmpHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.ContentType, CommonMimeTypes.ApplicationJson.bytes))
+//        tmpHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.Date, dateBytes))
+
         return HttpResponse(HttpResponseCode.OK, tmpHeaders, contentBytes, HttpVersion.HTTP11, serverBytes, request.connection)
 
 //        val example = JsonExample("Hello, World!")
@@ -90,259 +82,23 @@ class FakeHttpConnection(fakeWorker: WebWorker,
     override val requiresMasked: Boolean = false
 }
 
-data class QueryParam(val name: StringLocation,
-                      val value: StringLocation)
-
-data class RequestCredentials(val username: StringLocation,
-                              val password: StringLocation)
-
-abstract class RequestURI {
-    abstract fun getPathBytes(): ByteArray
-    abstract fun getPath(): String
-    abstract fun isSecure(): Boolean?
-    abstract fun getCredentials(): RequestCredentials?
-    abstract fun getHostBytes(): ByteArray?
-    abstract fun getHost(): String?
-    abstract fun getPort(): Int?
-    abstract fun getQueryParams(): List<QueryParam>?
-}
-
-class StringLocationRequestURI(private val path: StringLocation,
-                               private val isSecure: Boolean? = null,
-                               private val credentials: StringLocation? = null,
-                               private val host: StringLocation? = null,
-                               private val port: Int? = null,
-                               private val queryParams: StringLocation? = null,
-                               private val pathContainsPercentEncoding: Boolean): RequestURI() {
-    override fun getPathBytes(): ByteArray = path.bytes
-
-    override fun getPath(): String {
-        val pathString = path.toString()
-        if(!pathContainsPercentEncoding){
-            return pathString
-        }
-        else {
-            return URLDecoder.decode(pathString, Charsets.UTF_8.name())
-        }
-    }
-
-    override fun isSecure(): Boolean? = isSecure
-
-    override fun getCredentials(): RequestCredentials? {
-        if(credentials == null){
-            return null
-        }
-
-        TODO()
-    }
-
-    override fun getHostBytes(): ByteArray? {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun getHost(): String? {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun getPort(): Int? {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun getQueryParams(): List<QueryParam>? {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-}
-
-class ValueRequestURI(private val path: String,
-                      private val containsPercentEncoding: Boolean = false,
-                      private val isSecure: Boolean? = null,
-                      private val credentials: RequestCredentials? = null,
-                      private val host: String? = null,
-                      private val port: Int? = null,
-                      private val queryParams: List<QueryParam>? = null): RequestURI() {
-
-    override fun getPathBytes(): ByteArray = path.toByteArray(Charsets.US_ASCII)
-
-    override fun getPath(): String {
-        if(!containsPercentEncoding) {
-            return path
-        }
-        else {
-            return URLDecoder.decode(path, Charsets.UTF_8.name())
-        }
-    }
-
-    override fun isSecure(): Boolean? = isSecure
-
-    override fun getCredentials(): RequestCredentials? = credentials
-
-    override fun getHostBytes(): ByteArray? = host?.toByteArray(Charsets.US_ASCII)
-
-    override fun getHost(): String? = host
-
-    override fun getPort(): Int? = port
-
-    override fun getQueryParams(): List<QueryParam>? = queryParams
-}
-
 data class ParseTest(val uriString: String,
-                     val uri: RequestURI)
-
-val RootURI = ValueRequestURI("/")
-val StarURI = ValueRequestURI("*")
+                     val uri: HttpRequestURI) {
+    val bytes = uriString.toByteArray(Charsets.US_ASCII)
+    val buffer = ByteBuffer.allocateDirect(bytes.size + 1)
+    init {
+        buffer.position(1)
+        buffer.put(bytes)
+        buffer.flip()
+        buffer.position(1)
+    }
+}
 
 class HttpServerTests : CDBTest() {
     val host = "10.0.1.2"
     //    val host = "localhost"
     val port = 2648
     val address = InetSocketAddress(host, port)
-
-    fun parse(url: String): RequestURI {
-        val bytes = url.toByteArray(Charsets.US_ASCII)
-        val buffer = ByteBuffer.allocateDirect(bytes.size)
-        buffer.put(bytes)
-        buffer.flip()
-
-        val firstByte = buffer.get()
-
-        if(buffer.remaining() == 1){
-            when(firstByte) {
-                forwardSlashByte -> return RootURI
-                asteriskByte -> return StarURI
-                else -> TODO()
-            }
-        }
-
-        var pathContainsPercentEncoding = false
-        var credentialsStart = -1
-        var pathStart = -1
-        var portStart = -1
-        var hostStart = -1
-        var queryParamStart = -1
-        var port: Int? = null
-        var isSecure: Boolean? = null
-
-        if(firstByte == forwardSlashByte){
-            pathStart = 0
-            // abs_path
-            while(buffer.hasRemaining()){
-                val byte = buffer.get()
-                if(byte == percentByte) {
-                    pathContainsPercentEncoding = true
-                }
-                else if(byte == questionByte){
-                    queryParamStart = buffer.position()
-                    break
-                }
-            }
-        }
-        else {
-            // absoluteURI
-            val httpAsInt = 0
-            val doubleSlashAsShort: Short = 0
-            val firstFour = buffer.getInt()
-            if(firstFour != httpAsInt){
-                TODO("Exception")
-            }
-
-            val secureByte: Byte = 0x73
-
-            val next = buffer.get()
-            if(next == secureByte){
-                isSecure = true
-            }
-            else {
-                isSecure = false
-                if(next == colonByte){
-                    val slashes = buffer.getShort()
-                    if(slashes != doubleSlashAsShort){
-                        TODO("Exception")
-                    }
-                }
-
-                hostStart = buffer.position()
-
-                while(buffer.hasRemaining()){
-                    val byte = buffer.get()
-
-                    if(byte == colonByte){
-                        // parse port
-                        portStart = buffer.position()
-                        port = 0
-                        while(buffer.hasRemaining()){
-                            val portByte = buffer.get()
-                            if(portByte == forwardSlashByte){
-                                break
-                            }
-
-                            port = port!! * 10 + (portByte - 48)
-
-                        }
-                    }
-
-                    if(byte == forwardSlashByte){
-                        break
-                    }
-                }
-
-                pathStart = buffer.position()
-
-                while(buffer.hasRemaining()){
-                    val byte = buffer.get()
-                    if(byte == percentByte) {
-                        pathContainsPercentEncoding = true
-                    }
-                    else if(byte == questionByte){
-                        queryParamStart = buffer.position()
-                        break
-                    }
-                    else if(byte == atByte){
-                        if(!isSecure){
-                            TODO("Exception")
-                        }
-
-                        credentialsStart = pathStart
-                        pathStart = buffer.position()
-                    }
-                }
-            }
-        }
-
-        val end = buffer.position()
-
-        val credentials = if(credentialsStart != -1){
-            StringLocation(buffer, credentialsStart, pathStart - credentialsStart)
-        }
-        else {
-            null
-        }
-
-        val host = if(hostStart != -1){
-            StringLocation(buffer, hostStart, if(portStart != -1) portStart else pathStart)
-        }
-        else {
-            null
-        }
-
-        val queryParams = if(queryParamStart != -1){
-            StringLocation(buffer, queryParamStart, end - queryParamStart)
-        }
-        else {
-            null
-        }
-
-
-        return StringLocationRequestURI(
-            path = StringLocation(buffer, pathStart, end),
-            credentials = credentials,
-            isSecure = isSecure,
-            host = host,
-            port = port,
-            queryParams = queryParams,
-            pathContainsPercentEncoding = pathContainsPercentEncoding
-        )
-    }
 
     @Test
     fun uriParser() {
@@ -358,38 +114,109 @@ class HttpServerTests : CDBTest() {
         val tests = arrayOf(
                 ParseTest(
                         "/",
-                        ValueRequestURI(path = "/")
+                        ValueHttpRequestURI(path = "/")
                 ),
                 ParseTest(
                         "*",
-                        ValueRequestURI(path = "*")
+                        ValueHttpRequestURI(path = "*")
                 ),
                 ParseTest(
                         "/foo",
-                        ValueRequestURI(path = "/foo")
+                        ValueHttpRequestURI(path = "/foo")
+                ),
+                ParseTest(
+                        "http://name.com",
+                        ValueHttpRequestURI(path = "/", isSecure = false, host = "name.com")
+                ),
+                ParseTest(
+                        "http://name.com/",
+                        ValueHttpRequestURI(path = "/", isSecure = false, host = "name.com")
+                ),
+                ParseTest(
+                        "https://name.com",
+                        ValueHttpRequestURI(path = "/", isSecure = true, host = "name.com")
+                ),
+                ParseTest(
+                        "https://name.com:10",
+                        ValueHttpRequestURI(path = "/", isSecure = true, host = "name.com", port = 10)
+                ),
+                ParseTest(
+                        "https://name.com:4000/",
+                        ValueHttpRequestURI(path = "/", isSecure = true, host = "name.com", port = 4000)
+                ),
+                ParseTest(
+                        "https://name.com:5000/foo",
+                        ValueHttpRequestURI(path = "/foo", isSecure = true, host = "name.com", port = 5000)
+                ),
+                ParseTest(
+                        "/ ",
+                        ValueHttpRequestURI(path = "/")
+                ),
+                ParseTest(
+                        "* ",
+                        ValueHttpRequestURI(path = "*")
+                ),
+                ParseTest(
+                        "/foo ",
+                        ValueHttpRequestURI(path = "/foo")
+                ),
+                ParseTest(
+                        "http://name.com ",
+                        ValueHttpRequestURI(path = "/", isSecure = false, host = "name.com")
+                ),
+                ParseTest(
+                        "http://name.com/ ",
+                        ValueHttpRequestURI(path = "/", isSecure = false, host = "name.com")
+                ),
+                ParseTest(
+                        "https://name.com ",
+                        ValueHttpRequestURI(path = "/", isSecure = true, host = "name.com")
+                ),
+                ParseTest(
+                        "https://name.com:10 ",
+                        ValueHttpRequestURI(path = "/", isSecure = true, host = "name.com", port = 10)
+                ),
+                ParseTest(
+                        "https://name.com:4000/ ",
+                        ValueHttpRequestURI(path = "/", isSecure = true, host = "name.com", port = 4000)
+                ),
+                ParseTest(
+                        "https://name.com:5000/foo ",
+                        ValueHttpRequestURI(path = "/foo", isSecure = true, host = "name.com", port = 5000)
                 )/*,
                 ParseTest(
                         //"http://見.香港/foo" http://xn--nw2a.xn--j6w193g/
                         "/foo?bar=5",
-                        RequestURI(path = "/foo", query = listOf(QueryParam("bar", "5")))
-                ),
-                ParseTest(
-                        "http://name.com",
-                        RequestURI(path = "/", schema = "http", host = "name.com")
-                ),
-                ParseTest(
-                        "http://name.com/",
-                        RequestURI(path = "/", schema = "http", host = "name.com")
+                        ValueHttpRequestURI(path = "/foo", queryParams = listOf(QueryParam("bar", "5")))
                 ),
                 ParseTest(
                         "http://joe:pass@name.com",
-                        RequestURI(path = "/", schema = "http", host = "name.com", credentials = RequestCredentials("joe", "pass"))
+                        HttpRequestURI(path = "/", schema = "http", host = "name.com", credentials = RequestCredentials("joe", "pass"))
                 )*/
         )
 
         tests.forEach { test ->
-            assertEquals(parse(test.uriString), test.uri)
+            val parsed = parseHttpURI(test.buffer)
+            test.buffer.position(1)
+            assertEquals(test.uri, parsed)
         }
+
+        /*repeat(64) {
+            val pre = System.currentTimeMillis()
+            val goal = 10000000
+            var x = 0
+            while (x < goal) {
+                tests.forEach { test ->
+//                    val parsed = URI(test.uriString)
+                    val parsed = parseHttpURI(test.buffer, x % 1000000 == 0)
+                    test.buffer.rewind()
+                    x += 1
+                    //assertEquals(parsed, test.uri)
+                }
+            }
+            val post = System.currentTimeMillis()
+            println("Took ${post - pre} ms to parse $goal urls")
+        }*/
     }
 
     /*
@@ -398,7 +225,7 @@ class HttpServerTests : CDBTest() {
     @Test
     fun serversHandleRequests() {
         repeat(256) {
-            val serverThreadCount = 4
+            val serverThreadCount = 1
             val clientThreadCount = 2
             val channelCount = 256
 
@@ -411,7 +238,31 @@ class HttpServerTests : CDBTest() {
             val counterHandler = HttpCounterHandler()
             val serverConfig = WebServerConfig(address, serverThreadCount)
 
-            val server = WebServer(serverConfig, counterHandler)
+            val server = HttpServer(serverConfig)
+
+//            var u = 0
+//            while(u < 4000){
+//                server.registerUrl("/plain$u", counterHandler)
+//                u += 1
+//            }
+
+//            server.registerUrl("/plaintex1", counterHandler)
+//            server.registerUrl("/plaintex2", counterHandler)
+//            server.registerUrl("/plaintex3", counterHandler)
+//            server.registerUrl("/plaintex4", counterHandler)
+//            server.registerUrl("/plaintex5", counterHandler)
+//            server.registerUrl("/plaintex6", counterHandler)
+//            server.registerUrl("/plaintex7", counterHandler)
+//            server.registerUrl("/plaintex8", counterHandler)
+//            server.registerUrl("/plaintex9", counterHandler)
+//            server.registerUrl("/plaintexa", counterHandler)
+//            server.registerUrl("/plaintexb", counterHandler)
+//            server.registerUrl("/plaintexc", counterHandler)
+//            server.registerUrl("/plaintexd", counterHandler)
+//            server.registerUrl("/plaintexe", counterHandler)
+
+            server.registerUrl("/plaintext", counterHandler)
+
             counterHandler.server = server
             server.start()
 

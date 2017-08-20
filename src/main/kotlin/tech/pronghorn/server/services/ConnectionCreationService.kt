@@ -10,7 +10,7 @@ import java.nio.channels.Selector
 import java.nio.channels.SocketChannel
 import java.util.*
 
-class ServerConnectionCreationService(override val worker: WebServerWorker,
+class ServerConnectionCreationService(override val worker: HttpServerWorker,
                                       private val selector: Selector) : SingleWriterExternalQueueService<SocketChannel>() {
     override val logger = KotlinLogging.logger {}
     private val handshaker = WebsocketHandshaker()
@@ -25,7 +25,7 @@ class ServerConnectionCreationService(override val worker: WebServerWorker,
     }
 }
 
-class ClientConnectionCreationService(override val worker: WebClientWorker,
+class ClientConnectionCreationService(override val worker: HttpClientWorker,
                                       private val selector: Selector,
                                       private val randomGenerator: Random) : MultiWriterExternalQueueService<PendingClientConnection>() {
     init { TODO("Should this be a SingleWriterExternalQueueService?") }

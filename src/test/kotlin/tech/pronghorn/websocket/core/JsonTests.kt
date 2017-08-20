@@ -1,8 +1,8 @@
 package tech.pronghorn.websocket.core
 
-import com.http.HttpVersion
-import com.http.protocol.HttpResponseCode
-import com.http.protocol.HttpResponseHeader
+import tech.pronghorn.http.protocol.HttpVersion
+import tech.pronghorn.http.protocol.HttpResponseCode
+import tech.pronghorn.http.protocol.HttpResponseHeader
 import com.jsoniter.output.JsonStream
 import org.junit.Test
 import tech.pronghorn.http.HttpResponse

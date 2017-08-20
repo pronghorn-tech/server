@@ -523,7 +523,7 @@ class WebsocketServerTests : CDBTest() {
     init {
         "servers" should "accept incoming connections" {
             repeat(0) {
-                val server = WebServerWorker(noopConfig)
+                val server = HttpServerWorker(noopConfig)
                 server.start()
                 eventually { server.isRunning shouldBe true }
                 try {
@@ -542,7 +542,7 @@ class WebsocketServerTests : CDBTest() {
 
         "servers" should "handshake successfully" {
             repeat(0) {
-                val server = WebServerWorker(noopConfig)
+                val server = HttpServerWorker(noopConfig)
                 server.start()
                 try {
                     eventually { server.isRunning shouldBe true }
@@ -574,7 +574,7 @@ class WebsocketServerTests : CDBTest() {
                 val counterHandlers = mutableListOf<CounterHandler>()
                 val serverConfig = WebServerConfig(address, serverThreadCount)
 
-                val server = WebServer(serverConfig)
+                val server = HttpServer(serverConfig)
                 server.start()
 
                 val channels = mutableListOf<SocketChannel>()
@@ -686,7 +686,7 @@ class WebsocketServerTests : CDBTest() {
                 val counterHandlers = mutableListOf<CounterHandler>()
                 val serverConfig = WebServerConfig(address, serverThreadCount)
 
-                val server = WebServer(serverConfig)
+                val server = HttpServer(serverConfig)
                 server.start()
                 eventually { server.isRunning shouldBe true }
 
@@ -741,7 +741,7 @@ class WebsocketServerTests : CDBTest() {
                     override fun handleBinaryFrame(frame: BinaryFrame*//*, connection: HttpConnection*//*) {}
                 }
 
-                val server = WebServerWorker(address, counterHandler)
+                val server = HttpServerWorker(address, counterHandler)
                 val thread = thread { server.start() }
 
                 try {
@@ -827,8 +827,8 @@ class WebsocketClientTests : FlatSpec(), Eventually {
 
     fun withServerAndClient(serverFrameHandler: FrameHandler,
                             clientFrameHandler: FrameHandler,
-                            block: (WebServerWorker, WebsocketClient) -> Unit): Unit {
-        val server = WebServerWorker (address, serverFrameHandler)
+                            block: (HttpServerWorker, WebsocketClient) -> Unit): Unit {
+        val server = HttpServerWorker (address, serverFrameHandler)
         server.start()
 
         val randomGenerator = XoRoShiRo128PlusRandom (Util.randomSeed())
