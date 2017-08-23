@@ -36,8 +36,7 @@ class NumericResponseHeaderValue(override val header: HttpResponseHeader,
     override fun writeHeader(output: ByteBuffer,
                              offset: Int): Int {
         output.put(header.bytes)
-        output.put(colonByte)
-        output.put(spaceByte)
+        output.putShort(colonSpaceShort)
 
         if (value > 1000000000) output.put((48 + (value.rem(10000000000) / 1000000000)).toByte())
         if (value > 100000000) output.put((48 + (value.rem(1000000000) / 100000000)).toByte())
@@ -50,8 +49,7 @@ class NumericResponseHeaderValue(override val header: HttpResponseHeader,
         if (value > 10) output.put((48 + (value.rem(100) / 10)).toByte())
         output.put((48 + value.rem(10)).toByte())
 
-        output.put(carriageByte)
-        output.put(returnByte)
+        output.putShort(carriageReturnNewLineShort)
 
         return length
     }
@@ -66,11 +64,9 @@ class ByteArrayResponseHeaderValue(override val header: HttpResponseHeader,
     override fun writeHeader(output: ByteBuffer,
                              offset: Int): Int {
         output.put(header.bytes)
-        output.put(colonByte)
-        output.put(spaceByte)
+        output.putShort(colonSpaceShort)
         output.put(value)
-        output.put(carriageByte)
-        output.put(returnByte)
+        output.putShort(carriageReturnNewLineShort)
 
         return length
     }

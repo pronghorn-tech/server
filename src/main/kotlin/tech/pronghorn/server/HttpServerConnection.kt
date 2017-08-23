@@ -25,8 +25,10 @@ import java.nio.channels.SocketChannel
 import java.util.*
 
 const val spaceByte: Byte = 0x20
-const val carriageByte: Byte = 0xD
-const val returnByte: Byte = 0xA
+const val carriageReturnByte: Byte = 0xD
+const val newLineByte: Byte = 0xA
+const val carriageReturnNewLineShort: Short = 3338
+const val colonSpaceShort: Short = 14880
 const val colonByte: Byte = 0x3A
 const val tabByte: Byte = 0x9
 const val forwardSlashByte: Byte = 0x2F
@@ -339,15 +341,13 @@ abstract class HttpConnection(val worker: HttpWorker,
         buffer.put(response.httpVersion.bytes)
         buffer.put(spaceByte)
         buffer.put(response.code.bytes)
-        buffer.put(carriageByte)
-        buffer.put(returnByte)
+        buffer.putShort(carriageReturnNewLineShort)
 
         response.headers.forEach { header ->
             header.writeHeader(buffer, buffer.position())
         }
 
-        buffer.put(carriageByte)
-        buffer.put(returnByte)
+        buffer.putShort(carriageReturnNewLineShort)
 
         if (response.body.isNotEmpty()) {
             buffer.put(response.body, 0, response.body.size)

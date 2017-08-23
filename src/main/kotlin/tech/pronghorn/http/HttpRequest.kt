@@ -3,7 +3,7 @@ package tech.pronghorn.http
 import mu.KotlinLogging
 import tech.pronghorn.http.protocol.*
 import tech.pronghorn.plugins.map.MapPlugin
-import tech.pronghorn.server.HttpConnection
+import tech.pronghorn.server.*
 import java.nio.ByteBuffer
 import kotlin.experimental.or
 
@@ -23,12 +23,6 @@ object InvalidMethodParseError : HttpParseResult()
 object InvalidVersionParseError : HttpParseResult()
 
 object InvalidHeaderTypeParseError : HttpParseResult()
-
-private const val spaceByte: Byte = 0x20
-private const val carriageByte: Byte = 0xD
-private const val returnByte: Byte = 0xA
-private const val colonByte: Byte = 0x3A
-private const val tabByte: Byte = 0x9
 
 fun isEqual(a1: ByteArray, a2: ByteArray, offset: Int, size: Int): Boolean {
     if (a2.size != size) {
@@ -147,7 +141,7 @@ object HttpRequestParser {
 
         var requestLineEnd = -1
         while (buffer.hasRemaining()) {
-            if (buffer.get() == carriageByte && buffer.hasRemaining() && buffer.get() == returnByte) {
+            if (buffer.get() == carriageReturnByte && buffer.hasRemaining() && buffer.get() == newLineByte) {
                 requestLineEnd = buffer.position() - 1
                 break
             }
@@ -196,7 +190,7 @@ object HttpRequestParser {
             val valueStart = buffer.position()
 
             while (buffer.hasRemaining()) {
-                if (buffer.get() == carriageByte && buffer.hasRemaining() && buffer.get() == returnByte) {
+                if (buffer.get() == carriageReturnByte && buffer.hasRemaining() && buffer.get() == newLineByte) {
                     lineEnd = buffer.position()
                     break
                 }
@@ -223,7 +217,7 @@ object HttpRequestParser {
 
             headers.put(headerType, headerValue)
 
-            if (buffer.limit() >= lineEnd + 2 && buffer.get(lineEnd) == carriageByte && buffer.get(lineEnd + 1) == returnByte) {
+            if (buffer.limit() >= lineEnd + 2 && buffer.get(lineEnd) == carriageReturnByte && buffer.get(lineEnd + 1) == newLineByte) {
                 buffer.position(buffer.position() + 2)
                 headersEnd = buffer.position()
                 break
