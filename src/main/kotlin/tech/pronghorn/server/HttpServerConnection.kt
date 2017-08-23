@@ -93,7 +93,8 @@ abstract class HttpConnection(val worker: HttpWorker,
     fun removeInterestOps(removeInterestOps: Int) {
         try {
             selectionKey.interestOps(selectionKey.interestOps() and removeInterestOps.inv())
-        } catch (ex: CancelledKeyException) {
+        }
+        catch (ex: CancelledKeyException) {
             close("Connection closed.")
         }
     }
@@ -101,7 +102,8 @@ abstract class HttpConnection(val worker: HttpWorker,
     fun addInterestOps(newInterestOps: Int) {
         try {
             selectionKey.interestOps(selectionKey.interestOps() or newInterestOps)
-        } catch (ex: CancelledKeyException) {
+        }
+        catch (ex: CancelledKeyException) {
             close("Connection closed.")
         }
     }
@@ -109,7 +111,8 @@ abstract class HttpConnection(val worker: HttpWorker,
     fun updateInterestOps(newInterestOps: Int) {
         try {
             selectionKey.interestOps(newInterestOps)
-        } catch (ex: CancelledKeyException) {
+        }
+        catch (ex: CancelledKeyException) {
             close("Connection closed.")
         }
     }
@@ -216,13 +219,13 @@ abstract class HttpConnection(val worker: HttpWorker,
     suspend fun appendResponse(response: HttpResponse) {
         val empty = readyResponseReader.isEmpty()
         // TODO: is this better than just the addAsync?
-        if(!readyResponseWriter.offer(response)) {
+        if (!readyResponseWriter.offer(response)) {
             readyResponseWriter.addAsync(response)
         }
 
         if (empty) {
             // TODO: is this better than just the addAsync?
-            if(!connectionWriter.offer(this)) {
+            if (!connectionWriter.offer(this)) {
                 connectionWriter.addAsync(this)
             }
         }
@@ -244,7 +247,7 @@ abstract class HttpConnection(val worker: HttpWorker,
         var request = queuedRequestsReader.poll()
         while (request != null) {
             val handler = worker.getHandler(request.url.getPathBytes())
-            if(handler == null){
+            if (handler == null) {
                 logger.error("Could not fetch url: ${request.url.getPath()}")
             }
             else {
@@ -261,18 +264,20 @@ abstract class HttpConnection(val worker: HttpWorker,
         }
 
         val buffer = getWriteBuffer()
-        renderResponseDirect(buffer, response)
+        renderResponse(buffer, response)
         buffer.flip()
         try {
             socket.write(buffer)
-        } catch (ex: ClosedChannelException) {
+        }
+        catch (ex: ClosedChannelException) {
             close()
             return true
         }
         if (!buffer.hasRemaining()) {
             releaseWriteBuffer()
             return true
-        } else {
+        }
+        else {
             return false
         }
     }
@@ -286,19 +291,22 @@ abstract class HttpConnection(val worker: HttpWorker,
             if (wrote < 0) {
                 logger.error("DISCONNECTED DURING WRITE")
                 return true
-            } else if (wrote == 0) {
+            }
+            else if (wrote == 0) {
                 logger.error("WROTE 0 BYTES")
                 return false
-            } else {
+            }
+            else {
                 logger.info("Wrote $wrote bytes")
                 if (!buffer.hasRemaining()) {
                     return true
                 }
             }
-        } else {
+        }
+        else {
             var response = readyResponseReader.poll()
             while (buffer.hasRemaining() && response != null) {
-                renderResponseDirect(buffer, response)
+                renderResponse(buffer, response)
                 response = readyResponseReader.poll()
             }
             buffer.flip()
@@ -309,7 +317,8 @@ abstract class HttpConnection(val worker: HttpWorker,
             if (!buffer.hasRemaining()) {
                 releaseWriteBuffer()
                 return true
-            } else {
+            }
+            else {
 //                logger.error("INCOMPLETE WRITE")
                 return false
 //                System.exit(1)
@@ -317,8 +326,8 @@ abstract class HttpConnection(val worker: HttpWorker,
         }
     }
 
-    fun renderResponseDirect(buffer: ByteBuffer,
-                             response: HttpResponse): Boolean {
+    fun renderResponse(buffer: ByteBuffer,
+                       response: HttpResponse): Boolean {
 //        val dateBytes = worker.getDateHeaderValue()
         val size = response.getOutputSize()
         //val start = buffer.position()
@@ -334,10 +343,8 @@ abstract class HttpConnection(val worker: HttpWorker,
         buffer.put(returnByte)
 
         response.headers.forEach { header ->
-            header.writeHeaderDirect(buffer, buffer.position())
+            header.writeHeader(buffer, buffer.position())
         }
-
-//        ByteArrayResponseHeaderValue(HttpResponseHeader.Date, dateBytes).writeHeaderDirect(buffer, buffer.position())
 
         buffer.put(carriageByte)
         buffer.put(returnByte)
@@ -346,62 +353,6 @@ abstract class HttpConnection(val worker: HttpWorker,
             buffer.put(response.body, 0, response.body.size)
         }
 
-        return true
-    }
-
-    fun renderResponse(buffer: ByteBuffer,
-                       response: HttpResponse): Boolean {
-        val dateBytes = worker.getDateHeaderValue()
-        val size = response.getOutputSize()
-
-        if (buffer.remaining() < size) {
-            return false
-        }
-
-        val offset = buffer.position()
-        val output = buffer.array()
-
-        var z = offset
-
-        System.arraycopy(response.httpVersion.bytes, 0, output, z, response.httpVersion.bytes.size)
-        z += response.httpVersion.bytes.size
-        output[z] = spaceByte
-        z += 1
-
-        System.arraycopy(response.code.bytes, 0, output, z, response.code.bytes.size)
-        z += response.code.bytes.size
-        output[z] = carriageByte
-        output[z + 1] = returnByte
-        z += 2
-
-//        z += writeNumericHeader(HttpResponseHeader.ContentLength, response.body.size, output, z)
-//        z += writeHeader(HttpResponseHeader.Server, response.serverBytes, output, z)
-//        z += writeHeader(HttpResponseHeader.Date, dateBytes, output, z)
-
-        var x = 0
-        while (x < response.headers.size) {
-            z += response.headers[x].writeHeader(output, z)
-            x += 1
-        }
-//        response.headers.forEach { header ->
-//            z += header.writeHeader(output, z)
-//        }
-
-//        response.headers.forEach { header ->
-//            z += writeHeader(header.key, header.value, output, z)
-//        }
-
-        output[z] = carriageByte
-        output[z + 1] = returnByte
-        z += 2
-
-        if (response.body.isNotEmpty()) {
-            System.arraycopy(response.body, 0, output, z, response.body.size)
-        }
-
-        z += response.body.size
-
-        buffer.position(z)
         return true
     }
 
@@ -431,12 +382,14 @@ class HttpServerConnection(worker: HttpServerWorker,
         if (key == null) {
             close("Websocket handshakes must include a Sec-WebSocket-Key header.")
             return false
-        } else {
+        }
+        else {
             val handshake = handshaker.getServerHandshakeResponse(key)
             try {
                 socket.write(handshake)
                 return true
-            } catch (e: IOException) {
+            }
+            catch (e: IOException) {
                 close("Unexpected error replying to initial handshake.")
                 return false
             }
@@ -479,10 +432,12 @@ class HttpClientConnection(worker: HttpClientWorker,
             val handshake = handshaker.getClientHandshakeRequest(address.hostName, keyBytes)
             try {
                 socket.write(handshake)
-            } catch (e: IOException) {
+            }
+            catch (e: IOException) {
                 close("Unexpected error replying to initial handshake.")
             }
-        } else {
+        }
+        else {
             throw Exception("Unexpected socket address, should be InetSocketAddress")
         }
     }

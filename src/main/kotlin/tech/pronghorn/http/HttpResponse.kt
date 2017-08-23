@@ -1,8 +1,8 @@
 package tech.pronghorn.http
 
-import tech.pronghorn.http.protocol.HttpVersion
 import tech.pronghorn.http.protocol.HttpResponseCode
 import tech.pronghorn.http.protocol.HttpResponseHeader
+import tech.pronghorn.http.protocol.HttpVersion
 import tech.pronghorn.server.*
 import java.nio.ByteBuffer
 
@@ -12,11 +12,8 @@ sealed class HttpResponseHeaderValue<T>(open val header: HttpResponseHeader,
 
     abstract val length: Int
 
-    abstract fun writeHeader(output: ByteArray,
+    abstract fun writeHeader(output: ByteBuffer,
                              offset: Int): Int
-
-    abstract fun writeHeaderDirect(output: ByteBuffer,
-                                   offset: Int): Int
 }
 
 class NumericResponseHeaderValue(override val header: HttpResponseHeader,
@@ -36,14 +33,11 @@ class NumericResponseHeaderValue(override val header: HttpResponseHeader,
 
     override val length = header.bytes.size + valueLength + 4
 
-    override fun writeHeaderDirect(output: ByteBuffer,
-                                   offset: Int): Int {
-        val typeSize = header.bytes.size
-//        val typeSizeOffset = output.position() + typeSize
-        output.put(header.bytes, 0, typeSize)
+    override fun writeHeader(output: ByteBuffer,
+                             offset: Int): Int {
+        output.put(header.bytes)
         output.put(colonByte)
         output.put(spaceByte)
-//        val loc = typeSizeOffset + valueLength + 1
 
         if (value > 1000000000) output.put((48 + (value.rem(10000000000) / 1000000000)).toByte())
         if (value > 100000000) output.put((48 + (value.rem(1000000000) / 100000000)).toByte())
@@ -56,48 +50,8 @@ class NumericResponseHeaderValue(override val header: HttpResponseHeader,
         if (value > 10) output.put((48 + (value.rem(100) / 10)).toByte())
         output.put((48 + value.rem(10)).toByte())
 
-//        output.put(loc, (48 + value.rem(10)).toByte())
-//        if (value > 10) output.put(loc - 1, (48 + (value.rem(100) / 10)).toByte())
-//        if (value > 100) output.put(loc - 2, (48 + (value.rem(1000) / 100)).toByte())
-//        if (value > 1000) output.put(loc - 3, (48 + (value.rem(10000) / 1000)).toByte())
-//        if (value > 10000) output.put(loc - 4, (48 + (value.rem(100000) / 10000)).toByte())
-//        if (value > 100000) output.put(loc - 5, (48 + (value.rem(1000000) / 100000)).toByte())
-//        if (value > 1000000) output.put(loc - 6, (48 + (value.rem(10000000) / 1000000)).toByte())
-//        if (value > 10000000) output.put(loc - 7, (48 + (value.rem(100000000) / 10000000)).toByte())
-//        if (value > 100000000) output.put(loc - 8, (48 + (value.rem(1000000000) / 100000000)).toByte())
-//        if (value > 1000000000) output.put(loc - 9, (48 + (value.rem(10000000000) / 1000000000)).toByte())
-//        val endOffset = typeSizeOffset + 2 + valueLength
-//        output.put(endOffset, carriageByte)
-//        output.put(endOffset + 1, returnByte)
-          output.put(carriageByte)
-          output.put(returnByte)
-
-//        output.position(endOffset + 2)
-
-        return length
-    }
-
-    override fun writeHeader(output: ByteArray,
-                             offset: Int): Int {
-        val typeSize = header.bytes.size
-        val typeSizeOffset = offset + typeSize
-        System.arraycopy(header.bytes, 0, output, offset, typeSize)
-        output[typeSizeOffset] = colonByte
-        output[typeSizeOffset + 1] = spaceByte
-        val loc = typeSizeOffset + valueLength + 1
-        output[loc] = (48 + value.rem(10)).toByte()
-        if (value > 10) output[loc - 1] = (48 + (value.rem(100) / 10)).toByte()
-        if (value > 100) output[loc - 2] = (48 + (value.rem(1000) / 100)).toByte()
-        if (value > 1000) output[loc - 3] = (48 + (value.rem(10000) / 1000)).toByte()
-        if (value > 10000) output[loc - 4] = (48 + (value.rem(100000) / 10000)).toByte()
-        if (value > 100000) output[loc - 5] = (48 + (value.rem(1000000) / 100000)).toByte()
-        if (value > 1000000) output[loc - 6] = (48 + (value.rem(10000000) / 1000000)).toByte()
-        if (value > 10000000) output[loc - 7] = (48 + (value.rem(100000000) / 10000000)).toByte()
-        if (value > 100000000) output[loc - 8] = (48 + (value.rem(1000000000) / 100000000)).toByte()
-        if (value > 1000000000) output[loc - 9] = (48 + (value.rem(10000000000) / 1000000000)).toByte()
-        val endOffset = typeSizeOffset + 2 + valueLength
-        output[endOffset] = carriageByte
-        output[endOffset + 1] = returnByte
+        output.put(carriageByte)
+        output.put(returnByte)
 
         return length
     }
@@ -109,28 +63,14 @@ class ByteArrayResponseHeaderValue(override val header: HttpResponseHeader,
 
     override val length = header.bytes.size + valueLength + 4
 
-    override fun writeHeaderDirect(output: ByteBuffer,
-                                   offset: Int): Int {
+    override fun writeHeader(output: ByteBuffer,
+                             offset: Int): Int {
         output.put(header.bytes)
         output.put(colonByte)
         output.put(spaceByte)
         output.put(value)
         output.put(carriageByte)
         output.put(returnByte)
-
-        return length
-    }
-
-    override fun writeHeader(output: ByteArray, offset: Int): Int {
-        val typeSize = header.bytes.size
-        val typeSizeOffset = offset + typeSize
-        System.arraycopy(header.bytes, 0, output, offset, typeSize)
-        output[typeSizeOffset] = colonByte
-        output[typeSizeOffset + 1] = spaceByte
-        System.arraycopy(value, 0, output, typeSizeOffset + 2, valueLength)
-        val endOffset = typeSizeOffset + 2 + valueLength
-        output[endOffset] = carriageByte
-        output[endOffset + 1] = returnByte
 
         return length
     }

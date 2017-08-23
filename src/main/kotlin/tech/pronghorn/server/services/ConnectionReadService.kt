@@ -222,7 +222,7 @@ class ConnectionReadService(override val worker: HttpWorker) : InternalQueueServ
         buffer.flip()
 
         try {
-            var request = HttpRequestParser.parseDirect(buffer, this)
+            var request = HttpRequestParser.parse(buffer, this)
             // TODO: handle certain parse errors properly here.
             while (request is HttpRequest) {
 //                requestWriter.addAsync(request) // Faster for non-pipelining
@@ -231,7 +231,7 @@ class ConnectionReadService(override val worker: HttpWorker) : InternalQueueServ
                 if (!buffer.hasRemaining() || requestsParsed >= maxToParse) {
                     break
                 }
-                request = HttpRequestParser.parseDirect(buffer, this)
+                request = HttpRequestParser.parse(buffer, this)
                 // TODO: handle certain parse errors properly here.
             }
         }
