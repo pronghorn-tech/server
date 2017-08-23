@@ -32,12 +32,12 @@ class WebsocketClient(val config: WebsocketClientConfig) {
     }
 
     fun shutdown() {
-        workers.forEach(WebWorker::shutdown)
+        workers.forEach(HttpWorker::shutdown)
     }
 
-    fun getPendingConnectionCount(): Int = workers.map(WebWorker::getPendingConnectionCount).sum()
+    fun getPendingConnectionCount(): Int = workers.map(HttpWorker::getPendingConnectionCount).sum()
 
-    fun getActiveConnectionCount(): Int = workers.map(WebWorker::getActiveConnectionCount).sum()
+    fun getActiveConnectionCount(): Int = workers.map(HttpWorker::getActiveConnectionCount).sum()
 
     private fun getBestWorker(): HttpClientWorker {
         return workers.elementAt(lastWorkerID++ % config.workerCount)

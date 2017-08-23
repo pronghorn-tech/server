@@ -65,7 +65,7 @@ class HttpCounterHandler : HttpRequestHandler() {
     }
 }
 
-class FakeConnection(fakeWorker: WebWorker,
+class FakeConnection(fakeWorker: HttpWorker,
                      fakeSocket: SocketChannel,
                      fakeKey: SelectionKey) : HttpConnection(fakeWorker, fakeSocket, fakeKey) {
     override fun handleHandshakeRequest(request: ParsedHttpRequest, handshaker: WebsocketHandshaker): Boolean = true
@@ -74,7 +74,7 @@ class FakeConnection(fakeWorker: WebWorker,
 }
 
 
-class FakeHttpConnection(fakeWorker: WebWorker,
+class FakeHttpConnection(fakeWorker: HttpWorker,
                          fakeSocket: SocketChannel,
                          fakeKey: SelectionKey) : HttpConnection(fakeWorker, fakeSocket, fakeKey) {
     override fun handleHandshakeRequest(request: ParsedHttpRequest, handshaker: WebsocketHandshaker): Boolean = true

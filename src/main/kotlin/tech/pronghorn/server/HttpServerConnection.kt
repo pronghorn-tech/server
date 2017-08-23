@@ -35,7 +35,7 @@ const val percentByte: Byte = 0x25
 const val questionByte: Byte = 0x3F
 const val atByte: Byte = 0x40
 
-abstract class HttpConnection(val worker: WebWorker,
+abstract class HttpConnection(val worker: HttpWorker,
                               val socket: SocketChannel,
                               val selectionKey: SelectionKey) {
     companion object {
@@ -495,9 +495,9 @@ class HttpClientConnection(worker: HttpClientWorker,
     }
 }
 
-internal class DummyConnection(worker: WebWorker,
-                      socket: SocketChannel,
-                      selectionKey: SelectionKey) : HttpConnection(worker, socket, selectionKey) {
+internal class DummyConnection(worker: HttpWorker,
+                               socket: SocketChannel,
+                               selectionKey: SelectionKey) : HttpConnection(worker, socket, selectionKey) {
 
     override fun handleHandshakeRequest(request: ParsedHttpRequest, handshaker: WebsocketHandshaker): Boolean = false
 

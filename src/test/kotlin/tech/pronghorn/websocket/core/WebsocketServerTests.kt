@@ -463,7 +463,7 @@ class CounterHandler : FrameHandler() {
     override suspend fun handleBinaryFrame(frame: BinaryFrame) {}
 }
 
-class FakeConnection(fakeWorker: WebWorker,
+class FakeConnection(fakeWorker: HttpWorker,
                      fakeSocket: SocketChannel,
                      fakeKey: SelectionKey) : HttpConnection(fakeWorker, fakeSocket, fakeKey) {
     override fun handleHandshakeRequest(request: ParsedHttpRequest, handshaker: WebsocketHandshaker): Boolean = true
@@ -573,7 +573,7 @@ class WebsocketServerTests : CDBTest() {
                     server.getPendingConnectionCount() shouldBe 0
 
                     val maskBytes = ByteArray(4)
-                    val fakeWorker = object : WebWorker() {
+                    val fakeWorker = object : HttpWorker() {
                         override val logger = KotlinLogging.logger {}
                         override fun services(): List<Service> = emptyList()
                         override fun processKey(key: SelectionKey) = Unit

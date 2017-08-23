@@ -3,6 +3,7 @@ package tech.pronghorn.server
 import tech.pronghorn.coroutines.awaitable.QueueWriter
 import tech.pronghorn.coroutines.core.CoroutineWorker
 import tech.pronghorn.coroutines.core.InterWorkerMessage
+import tech.pronghorn.http.protocol.HttpResponseHeader
 import tech.pronghorn.plugins.concurrentMap.ConcurrentMapPlugin
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.config.HttpServerConfig
@@ -25,6 +26,10 @@ class HttpServer(val config: HttpServerConfig) {
     init { serverSocket.configureBlocking(false) }
     val serverBytes = config.serverName.toByteArray(Charsets.US_ASCII)
     var isRunning = false
+    private val serverDefaultHeaders = mutableMapOf(
+            HttpResponseHeader.Server to { serverBytes },
+            HttpResponseHeader.Date to HttpWorker::getDateHeaderValue
+    )
 
     init {
         for (x in 1..config.workerCount) {
@@ -33,6 +38,25 @@ class HttpServer(val config: HttpServerConfig) {
             workers.add(worker)
         }
     }
+
+    fun setDefaultHeaders(headers: Map<HttpResponseHeader, () -> ByteArray>){
+        serverDefaultHeaders.clear()
+        serverDefaultHeaders.putAll(headers)
+    }
+
+    fun clearDefaultHeaders() {
+        serverDefaultHeaders.clear()
+    }
+
+    fun addDefaultHeader(header: HttpResponseHeader,
+                         value: () -> ByteArray){
+        if(serverDefaultHeaders.contains(header)){
+            throw Exception("Conflicting default header: $header")
+        }
+        serverDefaultHeaders.put(header, value)
+    }
+
+    fun getDefaultHeaders() = serverDefaultHeaders
 
     fun start() {
         logger.debug { "Starting server on ${config.address} with ${config.workerCount} workers" }

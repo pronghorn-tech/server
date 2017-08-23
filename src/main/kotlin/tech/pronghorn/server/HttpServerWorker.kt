@@ -21,7 +21,7 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.*
 
-sealed class WebWorker : CoroutineWorker() {
+sealed class HttpWorker : CoroutineWorker() {
     //    protected val pendingConnections = NonBlockingHashSet<HttpConnection>()
     protected val allConnections = ConcurrentSetPlugin.get<HttpConnection>()
 
@@ -99,7 +99,7 @@ sealed class WebWorker : CoroutineWorker() {
     }
 }
 
-class HttpClientWorker(config: WebsocketClientConfig) : WebWorker() {
+class HttpClientWorker(config: WebsocketClientConfig) : HttpWorker() {
     override val logger = KotlinLogging.logger {}
     private val connectionCreationService = ClientConnectionCreationService(this, selector, config.randomGeneratorBuilder())
     private val connectionFinisherService = WebsocketConnectionFinisherService(this, selector, config.randomGeneratorBuilder())
@@ -141,7 +141,7 @@ data class URLHandlerMapping(val url: ByteArray,
 }
 
 class HttpServerWorker(private val server: HttpServer,
-                       private val config: HttpServerConfig) : WebWorker() {
+                       private val config: HttpServerConfig) : HttpWorker() {
     override val logger = KotlinLogging.logger {}
     private val serverKey = server.registerAcceptWorker(selector)
     private val connectionCreationService = ServerConnectionCreationService(this, selector)
@@ -204,7 +204,7 @@ class HttpServerWorker(private val server: HttpServer,
     }
 }
 
-class DummyWorker : WebWorker() {
+class DummyWorker : HttpWorker() {
     override val logger = KotlinLogging.logger {}
     override val services = emptyList<Service>()
     override fun processKey(key: SelectionKey) = TODO()

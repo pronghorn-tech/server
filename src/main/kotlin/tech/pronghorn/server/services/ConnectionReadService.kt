@@ -7,11 +7,11 @@ import tech.pronghorn.coroutines.service.InternalQueueService
 import tech.pronghorn.websocket.protocol.FrameParser
 import tech.pronghorn.websocket.protocol.WebsocketFrame
 import tech.pronghorn.server.HttpConnection
-import tech.pronghorn.server.WebWorker
+import tech.pronghorn.server.HttpWorker
 import java.io.IOException
 import java.nio.channels.SelectionKey
 
-class ConnectionReadService(override val worker: WebWorker) : InternalQueueService<HttpConnection>() {
+class ConnectionReadService(override val worker: HttpWorker) : InternalQueueService<HttpConnection>() {
     override val logger = KotlinLogging.logger {}
     private val maxFramesParsed = 64
 //    private var connectionsProcessed = 0
