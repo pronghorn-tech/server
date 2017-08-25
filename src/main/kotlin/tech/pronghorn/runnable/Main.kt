@@ -15,7 +15,7 @@ private class PlaintextHandler : HttpRequestHandler() {
     val headers = listOf<HttpResponseHeaderValue<*>>()
 
     override suspend fun handleGet(request: HttpRequest): HttpResponse {
-        return HttpResponse(HttpResponseCode.OK, headers, contentBytes, HttpVersion.HTTP11, ByteArray(0), request.connection)
+        return HttpResponse(HttpResponseCode.OK, headers, contentBytes, HttpVersion.HTTP11, request.connection)
     }
 }
 

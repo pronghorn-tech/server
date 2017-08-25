@@ -12,7 +12,6 @@ import tech.pronghorn.stats.StatTracker
 import tech.pronghorn.test.CDBTest
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
-import java.nio.channels.SelectionKey
 import java.nio.channels.SocketChannel
 import java.time.Duration
 import java.util.*

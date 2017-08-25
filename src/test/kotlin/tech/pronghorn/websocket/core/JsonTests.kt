@@ -32,7 +32,7 @@ class JsonTests : CDBTest() {
             socket.configureBlocking(false)
             val selector = Selector.open()
             val key = socket.register(selector, SelectionKey.OP_READ)
-            val dummyConnection = DummyConnection(DummyWorker(), socket, key)
+            val dummyConnection = DummyConnection(TODO(), socket, key)
 
             while (x < count) {
                 val potato = Potato("Hello, World!$x")
@@ -46,7 +46,6 @@ class JsonTests : CDBTest() {
 //                        ),
                         utf,
                         HttpVersion.HTTP11,
-                        serverBytes,
                         dummyConnection
                 )
 

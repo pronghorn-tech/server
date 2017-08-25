@@ -7,7 +7,6 @@ import tech.pronghorn.http.HttpRequestParser
 import tech.pronghorn.server.HttpServerConnection
 import tech.pronghorn.server.HttpWorker
 import java.io.IOException
-import java.nio.channels.SelectionKey
 
 class ConnectionReadService(override val worker: HttpWorker) : InternalQueueService<HttpServerConnection>() {
     override val logger = KotlinLogging.logger {}
