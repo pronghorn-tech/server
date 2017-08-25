@@ -3,14 +3,16 @@ package tech.pronghorn.server
 import tech.pronghorn.coroutines.awaitable.QueueWriter
 import tech.pronghorn.coroutines.core.CoroutineWorker
 import tech.pronghorn.coroutines.core.InterWorkerMessage
-import tech.pronghorn.http.protocol.HttpResponseHeader
 import tech.pronghorn.plugins.concurrentMap.ConcurrentMapPlugin
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.config.HttpServerConfig
 import tech.pronghorn.server.core.HttpRequestHandler
 import tech.pronghorn.server.services.ServerConnectionCreationService
 import java.io.IOException
-import java.nio.channels.*
+import java.nio.channels.SelectionKey
+import java.nio.channels.Selector
+import java.nio.channels.ServerSocketChannel
+import java.nio.channels.SocketChannel
 import java.util.concurrent.locks.ReentrantLock
 
 data class RegisterURLHandlerMessage(val url: String,
@@ -23,13 +25,9 @@ class HttpServer(val config: HttpServerConfig) {
     private val workerSocketWriters = ConcurrentMapPlugin.get<HttpServerWorker, QueueWriter<SocketChannel>>()
     private var lastWorkerID = 0
     private val acceptLock = ReentrantLock()
-    init { serverSocket.configureBlocking(false) }
-    val serverBytes = config.serverName.toByteArray(Charsets.US_ASCII)
     var isRunning = false
-    private val serverDefaultHeaders = mutableMapOf(
-            HttpResponseHeader.Server to { serverBytes },
-            HttpResponseHeader.Date to HttpWorker::getDateHeaderValue
-    )
+        private set
+    init { serverSocket.configureBlocking(false) }
 
     init {
         for (x in 1..config.workerCount) {
@@ -38,25 +36,6 @@ class HttpServer(val config: HttpServerConfig) {
             workers.add(worker)
         }
     }
-
-    fun setDefaultHeaders(headers: Map<HttpResponseHeader, () -> ByteArray>){
-        serverDefaultHeaders.clear()
-        serverDefaultHeaders.putAll(headers)
-    }
-
-    fun clearDefaultHeaders() {
-        serverDefaultHeaders.clear()
-    }
-
-    fun addDefaultHeader(header: HttpResponseHeader,
-                         value: () -> ByteArray){
-        if(serverDefaultHeaders.contains(header)){
-            throw Exception("Conflicting default header: $header")
-        }
-        serverDefaultHeaders.put(header, value)
-    }
-
-    fun getDefaultHeaders() = serverDefaultHeaders
 
     fun start() {
         logger.debug { "Starting server on ${config.address} with ${config.workerCount} workers" }
@@ -81,16 +60,6 @@ class HttpServer(val config: HttpServerConfig) {
         }
     }
 
-    fun getPendingConnectionCount(): Int {
-        throw Exception("No longer valid")
-        workers.map(HttpServerWorker::getPendingConnectionCount).sum()
-    }
-
-    fun getActiveConnectionCount(): Int {
-        throw Exception("No longer valid")
-        workers.map(HttpServerWorker::getActiveConnectionCount).sum()
-    }
-
     fun getConnectionCount(): Int = workers.map(HttpServerWorker::getConnectionCount).sum()
 
     fun registerAcceptWorker(selector: Selector): SelectionKey {
@@ -101,16 +70,16 @@ class HttpServer(val config: HttpServerConfig) {
         return workers.elementAt(lastWorkerID++ % config.workerCount)
     }
 
-    fun registerUrl(url: String,
+    fun registerUrlHandlerGenerator(url: String,
                     handlerGenerator: () -> HttpRequestHandler){
         workers.forEach { worker ->
             worker.sendInterWorkerMessage(RegisterURLHandlerMessage(url, handlerGenerator))
         }
     }
 
-    fun registerUrl(url: String,
+    fun registerUrlHandler(url: String,
                     handler: HttpRequestHandler) {
-        registerUrl(url, { handler })
+        registerUrlHandlerGenerator(url, { handler })
     }
 
     val acceptGrouping = 128

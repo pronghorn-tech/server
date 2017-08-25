@@ -4,7 +4,6 @@ import mu.KotlinLogging
 import tech.pronghorn.coroutines.service.MultiWriterExternalQueueService
 import tech.pronghorn.coroutines.service.SingleWriterExternalQueueService
 import tech.pronghorn.server.*
-import tech.pronghorn.websocket.core.WebsocketHandshaker
 import java.nio.channels.SelectionKey
 import java.nio.channels.Selector
 import java.nio.channels.SocketChannel
@@ -13,7 +12,7 @@ import java.util.*
 class ServerConnectionCreationService(override val worker: HttpServerWorker,
                                       private val selector: Selector) : SingleWriterExternalQueueService<SocketChannel>() {
     override val logger = KotlinLogging.logger {}
-    private val handshaker = WebsocketHandshaker()
+//    private val handshaker = WebsocketHandshaker()
 
     suspend override fun process(socket: SocketChannel) {
         socket.configureBlocking(false)
@@ -25,6 +24,7 @@ class ServerConnectionCreationService(override val worker: HttpServerWorker,
     }
 }
 
+/*
 class ClientConnectionCreationService(override val worker: HttpClientWorker,
                                       private val selector: Selector,
                                       private val randomGenerator: Random) : MultiWriterExternalQueueService<PendingClientConnection>() {
@@ -48,4 +48,4 @@ class ClientConnectionCreationService(override val worker: HttpClientWorker,
         }
     }
 }
-
+*/

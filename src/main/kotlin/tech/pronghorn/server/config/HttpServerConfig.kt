@@ -14,4 +14,5 @@ import java.net.InetSocketAddress
  */
 data class HttpServerConfig(val address: InetSocketAddress,
                             val workerCount: Int = Runtime.getRuntime().availableProcessors(),
-                            val serverName: String = "Pronghorn")
+                            val serverName: String = "Pronghorn",
+                            val sendServerHeader: Boolean = true)

@@ -4,17 +4,19 @@ import mu.KotlinLogging
 import tech.pronghorn.coroutines.core.CoroutineWorker
 import tech.pronghorn.coroutines.core.InterWorkerMessage
 import tech.pronghorn.coroutines.service.Service
+import tech.pronghorn.http.ByteArrayResponseHeaderValue
+import tech.pronghorn.http.protocol.HttpResponseHeader
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.bufferpools.ConnectionBufferPool
 import tech.pronghorn.server.bufferpools.HandshakeBufferPool
 import tech.pronghorn.server.config.HttpServerConfig
-import tech.pronghorn.server.config.WebsocketClientConfig
 import tech.pronghorn.server.core.HttpRequestHandler
 import tech.pronghorn.server.services.*
-import tech.pronghorn.util.*
 import tech.pronghorn.util.finder.ByteBacked
 import tech.pronghorn.util.finder.ByteBackedFinder
 import tech.pronghorn.util.finder.FinderGenerator
+import tech.pronghorn.util.runAllIgnoringExceptions
+import java.nio.ByteBuffer
 import java.nio.channels.SelectionKey
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -23,7 +25,7 @@ import java.util.*
 
 sealed class HttpWorker : CoroutineWorker() {
     //    protected val pendingConnections = NonBlockingHashSet<HttpConnection>()
-    protected val allConnections = ConcurrentSetPlugin.get<HttpConnection>()
+    protected val allConnections = ConcurrentSetPlugin.get<HttpServerConnection>()
 
     val handshakeBufferPool = HandshakeBufferPool()
     val connectionBufferPool = ConnectionBufferPool(true)
@@ -40,12 +42,12 @@ sealed class HttpWorker : CoroutineWorker() {
 
     fun getConnectionCount(): Int = allConnections.size
 
-    fun clearPendingConnection(connection: HttpConnection) {
+    fun clearPendingConnection(connection: HttpServerConnection) {
         throw Exception("No longer valid")
 //        pendingConnections.remove(connection)
     }
 
-    fun addConnection(connection: HttpConnection) {
+    fun addConnection(connection: HttpServerConnection) {
         assert(isSchedulerThread())
 //        if (!connection.isHandshakeComplete) {
 //            pendingConnections.add(connection)
@@ -53,7 +55,7 @@ sealed class HttpWorker : CoroutineWorker() {
         allConnections.add(connection)
     }
 
-    fun removeConnection(connection: HttpConnection) {
+    fun removeConnection(connection: HttpServerConnection) {
         assert(isSchedulerThread())
         allConnections.remove(connection)
     }
@@ -65,19 +67,19 @@ sealed class HttpWorker : CoroutineWorker() {
 
 //    protected val handshakeTimeoutService = HandshakeTimeoutService(this, pendingConnections, handshakeTimeout)
 //    protected val frameHandlerService = FrameHandlerService(this, frameHandler)
-    protected val handshakeService = HandshakeService(this)
+//    protected val handshakeService = HandshakeService(this)
     protected val connectionReadService = ConnectionReadService(this)
 
-    protected val handshakeServiceQueueWriter by lazy(LazyThreadSafetyMode.NONE) {
-        handshakeService.getQueueWriter()
-    }
+//    protected val handshakeServiceQueueWriter by lazy(LazyThreadSafetyMode.NONE) {
+//        handshakeService.getQueueWriter()
+//    }
 
     protected val connectionReadServiceQueueWriter by lazy(LazyThreadSafetyMode.NONE) {
         connectionReadService.getQueueWriter()
     }
 
     protected val commonServices = listOf(
-            handshakeService,
+//            handshakeService,
 //        handshakeTimeoutService,
 //        frameHandlerService,
             connectionReadService
@@ -99,6 +101,7 @@ sealed class HttpWorker : CoroutineWorker() {
     }
 }
 
+/*
 class HttpClientWorker(config: WebsocketClientConfig) : HttpWorker() {
     override val logger = KotlinLogging.logger {}
     private val connectionCreationService = ClientConnectionCreationService(this, selector, config.randomGeneratorBuilder())
@@ -134,13 +137,14 @@ class HttpClientWorker(config: WebsocketClientConfig) : HttpWorker() {
         }
     }
 }
+*/
 
 data class URLHandlerMapping(val url: ByteArray,
                              val handler: HttpRequestHandler): ByteBacked {
     override val bytes = url
 }
 
-class HttpServerWorker(private val server: HttpServer,
+class HttpServerWorker(val server: HttpServer,
                        private val config: HttpServerConfig) : HttpWorker() {
     override val logger = KotlinLogging.logger {}
     private val serverKey = server.registerAcceptWorker(selector)
@@ -150,8 +154,43 @@ class HttpServerWorker(private val server: HttpServer,
     private val handlerService = HttpRequestHandlerPerRequestService(this)
     private val responseWriterService = ResponseWriterService(this)
     private val handlers = HashMap<Int, URLHandlerMapping>()
-    private val handlerMapping: Array<URLHandlerMapping?> = arrayOfNulls(16)
-    private var handlerCount = 0
+    private val gmt = ZoneId.of("GMT")
+    private val commonHeaderCache = calculateCommonHeaderCache()
+    private var latestDate = System.currentTimeMillis() / 1000
+    val commonHeaderSize = commonHeaderCache.size
+
+    private fun calculateCommonHeaderCache(): ByteArray {
+        val dateBytes = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(gmt)).toByteArray(Charsets.US_ASCII)
+        val dateHeader = ByteArrayResponseHeaderValue(HttpResponseHeader.Date, dateBytes)
+
+        if(config.sendServerHeader){
+            val serverHeader = ByteArrayResponseHeaderValue(HttpResponseHeader.Server, config.serverName.toByteArray(Charsets.US_ASCII))
+            val buffer = ByteBuffer.allocate(serverHeader.length + dateHeader.length)
+            serverHeader.writeHeader(buffer)
+            dateHeader.writeHeader(buffer)
+            return Arrays.copyOf(buffer.array(), buffer.capacity())
+        }
+        else {
+            val buffer = ByteBuffer.allocate(dateHeader.length)
+            dateHeader.writeHeader(buffer)
+            return Arrays.copyOf(buffer.array(), buffer.capacity())
+        }
+    }
+
+    fun getCommonHeaders(): ByteArray {
+        val now = System.currentTimeMillis() / 1000
+        if (latestDate != now) {
+            latestDate = now
+            val dateBytes = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(gmt)).toByteArray(Charsets.US_ASCII)
+            val dateStart = commonHeaderCache.size - dateBytes.size - 2
+            var x = 0
+            while(x < dateBytes.size){
+                commonHeaderCache[dateStart + x] = dateBytes[x]
+                x += 1
+            }
+        }
+        return commonHeaderCache
+    }
 
     override val services: List<Service> = listOf(
             connectionCreationService,

@@ -7,11 +7,11 @@ import tech.pronghorn.coroutines.awaitable.QueueWriter
 import tech.pronghorn.coroutines.core.CoroutineWorker
 import tech.pronghorn.plugins.concurrentMap.ConcurrentMapPlugin
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
-import tech.pronghorn.server.config.WebsocketClientConfig
-import tech.pronghorn.server.services.ClientConnectionCreationService
+//import tech.pronghorn.server.services.ClientConnectionCreationService
 import java.net.InetSocketAddress
 import java.nio.channels.SocketChannel
 
+/*
 class PendingClientConnection(val socket: SocketChannel,
                               val promise: InternalFuture.InternalPromise<HttpClientConnection>)
 
@@ -83,3 +83,4 @@ class WebsocketClient(val config: WebsocketClientConfig) {
         return returnFuture
     }
 }
+*/

@@ -30,32 +30,16 @@ class HttpCounterHandler : HttpRequestHandler() {
     val stats = StatTracker()
     //var requestsHandled = 0L
     val requestsHandled = AtomicLong(0)
-    val serverBytes = "Pronghorn".toByteArray(Charsets.US_ASCII)
-
     val contentBytes = "Hello World!".toByteArray(Charsets.US_ASCII)
-
-    val dateBytes = "Tue, 15 Aug 2017 00:28:37 GMT".toByteArray(Charsets.US_ASCII)
-
-    val staticHeaders = ArrayList<HttpResponseHeaderValue<*>>(8)
-
-    init {
-        staticHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.Server, serverBytes))
-//        staticHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.ContentType, CommonMimeTypes.ApplicationJson.bytes))
-        staticHeaders.add(NumericResponseHeaderValue(HttpResponseHeader.ContentLength, 27))
-//        staticHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.Date, dateBytes))
-    }
 
     override suspend fun handleGet(request: HttpRequest): HttpResponse {
 //        requestsHandled.incrementAndGet()
 
         val tmpHeaders = ArrayList<HttpResponseHeaderValue<*>>()
         tmpHeaders.add(NumericResponseHeaderValue(HttpResponseHeader.ContentLength, contentBytes.size))
-        tmpHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.Server, serverBytes))
+        tmpHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.ContentType, CommonMimeTypes.ApplicationJson.bytes))
 
-//        tmpHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.ContentType, CommonMimeTypes.ApplicationJson.bytes))
-//        tmpHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.Date, dateBytes))
-
-        return HttpResponse(HttpResponseCode.OK, tmpHeaders, contentBytes, HttpVersion.HTTP11, serverBytes, request.connection)
+        return HttpResponse(HttpResponseCode.OK, tmpHeaders, contentBytes, HttpVersion.HTTP11, request.connection)
 
 //        val example = JsonExample("Hello, World!")
 //        val json = JsonStream.serialize(example)
@@ -63,23 +47,6 @@ class HttpCounterHandler : HttpRequestHandler() {
 //
 //        return HttpResponse(HttpResponseCode.OK, staticHeaders, jsonBytes, HttpVersion.HTTP11, serverBytes, request.connection)
     }
-}
-
-class FakeConnection(fakeWorker: HttpWorker,
-                     fakeSocket: SocketChannel,
-                     fakeKey: SelectionKey) : HttpConnection(fakeWorker, fakeSocket, fakeKey) {
-    override fun handleHandshakeRequest(request: ParsedHttpRequest, handshaker: WebsocketHandshaker): Boolean = true
-    override val shouldSendMasked: Boolean = false
-    override val requiresMasked: Boolean = false
-}
-
-
-class FakeHttpConnection(fakeWorker: HttpWorker,
-                         fakeSocket: SocketChannel,
-                         fakeKey: SelectionKey) : HttpConnection(fakeWorker, fakeSocket, fakeKey) {
-    override fun handleHandshakeRequest(request: ParsedHttpRequest, handshaker: WebsocketHandshaker): Boolean = true
-    override val shouldSendMasked: Boolean = false
-    override val requiresMasked: Boolean = false
 }
 
 data class ParseTest(val uriString: String,
@@ -246,7 +213,7 @@ class HttpServerTests : CDBTest() {
 //                u += 1
 //            }
 
-            server.registerUrl("/plaintext", counterHandler)
+            server.registerUrlHandler("/plaintext", counterHandler)
 
             counterHandler.server = server
             server.start()

@@ -1,7 +1,5 @@
 package tech.pronghorn.util.finder
 
-import tech.pronghorn.http.isEqual
-import tech.pronghorn.http.isEqualStartingAt
 import tech.pronghorn.plugins.arrayHash.ArrayHashPlugin
 import java.nio.ByteBuffer
 import java.util.*

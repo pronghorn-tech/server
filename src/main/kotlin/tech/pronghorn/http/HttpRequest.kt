@@ -14,7 +14,7 @@ class HttpRequest(val bytes: ByteArray,
                   val url: HttpRequestURI,
                   val version: HttpVersion,
                   val headers: Map<HttpRequestHeader, AsciiString>,
-                  val connection: HttpConnection) : HttpParseResult()
+                  val connection: HttpServerConnection) : HttpParseResult()
 
 object IncompleteRequestParseError : HttpParseResult()
 
@@ -22,94 +22,11 @@ object InvalidMethodParseError : HttpParseResult()
 
 object InvalidVersionParseError : HttpParseResult()
 
-object InvalidHeaderTypeParseError : HttpParseResult()
-
-fun isEqual(a1: ByteArray, a2: ByteArray, offset: Int, size: Int): Boolean {
-    if (a2.size != size) {
-        return false
-    }
-
-    var x = 0
-    while (x < size) {
-        if (a1[offset + x] != a2[x]) {
-            return false
-        }
-        x += 1
-    }
-    return true
-}
-
-fun isEqualStartingAt(a1: ByteArray, a2: ByteArray, startingAt: Int): Boolean {
-    if (a1.size != a2.size) {
-        return false
-    }
-
-    var x = 0
-    while (x < a1.size) {
-        val index = (startingAt + x) % a1.size
-        if (a1[index] != a2[index]) {
-            return false
-        }
-        x += 1
-    }
-    return true
-}
-
-fun isEqualStartingAt(arr: ByteArray, buffer: ByteBuffer, offset: Int, size: Int, startingAt: Int): Boolean {
-    val prePosition = buffer.position()
-    if (arr.size != size) {
-        return false
-    }
-
-    buffer.position(offset + startingAt)
-    var x = startingAt
-    while (x < size) {
-        if (buffer.get() != arr[x]) {
-            buffer.position(prePosition)
-            return false
-        }
-        x += 1
-    }
-
-    x = 0
-    buffer.position(offset)
-    while(x < startingAt){
-        if (buffer.get() != arr[x]) {
-            buffer.position(prePosition)
-            return false
-        }
-        x += 1
-    }
-
-    buffer.position(prePosition)
-    return true
-}
-
-fun isEqual(arr: ByteArray, buffer: ByteBuffer, offset: Int, size: Int): Boolean {
-    val prePosition = buffer.position()
-    if (arr.size != size) {
-        return false
-    }
-
-    buffer.position(offset)
-    var x = 0
-    while (x < size) {
-        if (buffer.get() != arr[x]) {
-            buffer.position(prePosition)
-            return false
-        }
-        x += 1
-    }
-
-    buffer.position(prePosition)
-    return true
-}
-
 object HttpRequestParser {
     private val logger = KotlinLogging.logger {}
 
     fun parse(buffer: ByteBuffer,
-                    connection: HttpConnection): HttpParseResult {
+              connection: HttpServerConnection): HttpParseResult {
         val start = buffer.position()
         val bytes = ByteArray(0)
 
@@ -133,9 +50,6 @@ object HttpRequestParser {
             return InvalidMethodParseError
         }
 
-//        val url = ValueHttpRequestURI("/plaintext")
-//        val urlEnd = buffer.position() + 10
-//        buffer.position(urlEnd)
         val url = parseHttpURI(buffer)
         val urlEnd = buffer.position() - 1
 
@@ -154,7 +68,7 @@ object HttpRequestParser {
         val versionLength = requestLineEnd - urlEnd - 2
 
         val version = HttpVersion.find(buffer, urlEnd + 1, versionLength)
-        if(version == null){
+        if (version == null) {
             return InvalidVersionParseError
         }
 
@@ -174,7 +88,8 @@ object HttpRequestParser {
                 if (byte == colonByte) {
                     typeEnd = buffer.position() - 1
                     break
-                } else if (byte < 91 && byte > 64) {
+                }
+                else if (byte < 91 && byte > 64) {
                     // lowercase header names for lookup
                     buffer.put(bytePos, byte.or(0x20))
                 }

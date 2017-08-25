@@ -1,6 +1,5 @@
 package tech.pronghorn.util.finder
 
-import tech.pronghorn.http.isEqual
 import java.nio.ByteBuffer
 import java.util.*
 

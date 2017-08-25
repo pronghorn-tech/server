@@ -12,8 +12,7 @@ sealed class HttpResponseHeaderValue<T>(open val header: HttpResponseHeader,
 
     abstract val length: Int
 
-    abstract fun writeHeader(output: ByteBuffer,
-                             offset: Int): Int
+    abstract fun writeHeader(output: ByteBuffer): Int
 }
 
 class NumericResponseHeaderValue(override val header: HttpResponseHeader,
@@ -31,11 +30,10 @@ class NumericResponseHeaderValue(override val header: HttpResponseHeader,
         else -> 10
     }
 
-    override val length = header.bytes.size + valueLength + 4
+    override val length = header.displayBytes.size + valueLength + 4
 
-    override fun writeHeader(output: ByteBuffer,
-                             offset: Int): Int {
-        output.put(header.bytes)
+    override fun writeHeader(output: ByteBuffer): Int {
+        output.put(header.displayBytes)
         output.putShort(colonSpaceShort)
 
         if (value > 1000000000) output.put((48 + (value.rem(10000000000) / 1000000000)).toByte())
@@ -59,11 +57,10 @@ class ByteArrayResponseHeaderValue(override val header: HttpResponseHeader,
                                    override val value: ByteArray) : HttpResponseHeaderValue<ByteArray>(header, value) {
     override val valueLength: Int = value.size
 
-    override val length = header.bytes.size + valueLength + 4
+    override val length = header.displayBytes.size + valueLength + 4
 
-    override fun writeHeader(output: ByteBuffer,
-                             offset: Int): Int {
-        output.put(header.bytes)
+    override fun writeHeader(output: ByteBuffer): Int {
+        output.put(header.displayBytes)
         output.putShort(colonSpaceShort)
         output.put(value)
         output.putShort(carriageReturnNewLineShort)
@@ -72,29 +69,24 @@ class ByteArrayResponseHeaderValue(override val header: HttpResponseHeader,
     }
 }
 
+//abstract class HttpExchange(private val request: HttpRequest){
+//
+//}
+//
+//class HttpGetExchange(override val request: HttpRequest): HttpExchange {
+//
+//}
+
 class HttpResponse(val code: HttpResponseCode,
                    val headers: List<HttpResponseHeaderValue<*>>,
                    val body: ByteArray,
                    val httpVersion: HttpVersion,
-                   val serverBytes: ByteArray,
-                   val connection: HttpConnection) {
-    companion object {
-        private const val dateHeaderSize = 4 + 2 + 29 + 2 // [Date: Wed, 25 Nov 1981 01:23:45 UTC\r\n]
-        private const val serverHeaderBaseSize = 10 // [Server: ******\r\n]
-//        private const val contentLengthHeaderBaseSize = 18 // [Content-Length: ******\r\n]
-    }
-
-//    init {
-//        headers.add(NumericResponseHeaderValue(HttpResponseHeader.ContentLength, body.size))
-//        headers.add(ByteArrayResponseHeaderValue(HttpResponseHeader.Server, serverBytes))
-//    }
-
+                   val connection: HttpServerConnection) {
     fun getOutputSize(): Int {
-//        val serverHeaderSize = serverHeaderBaseSize + serverBytes.size
         val statusLineSize = httpVersion.bytes.size + 1 + code.bytes.size + 2
-
         val headersSize = headers.map { header -> header.length }.sum()
+        val commonHeaderSize = connection.worker.commonHeaderSize
 
-        return statusLineSize + /*contentLengthHeaderSize + serverHeaderSize + */dateHeaderSize + headersSize + 2 + body.size
+        return statusLineSize + headersSize + commonHeaderSize + 2 + body.size
     }
 }

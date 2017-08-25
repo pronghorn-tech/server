@@ -3,19 +3,12 @@ package tech.pronghorn.server.services
 import mu.KotlinLogging
 import tech.pronghorn.coroutines.core.CoroutineWorker
 import tech.pronghorn.coroutines.service.InternalQueueService
-import tech.pronghorn.websocket.protocol.FrameWriter
-import tech.pronghorn.websocket.protocol.WebsocketFrame
-import tech.pronghorn.server.HttpConnection
-import java.nio.ByteBuffer
+import tech.pronghorn.server.HttpServerConnection
 
-class ResponseWriterService(override val worker: CoroutineWorker) : InternalQueueService<HttpConnection>() {
+class ResponseWriterService(override val worker: CoroutineWorker) : InternalQueueService<HttpServerConnection>() {
     override val logger = KotlinLogging.logger {}
 
-    override suspend fun process(connection: HttpConnection): Boolean {
+    override suspend fun process(connection: HttpServerConnection): Boolean {
         return connection.writeResponses()
-    }
-
-    fun WebsocketFrame.encode(buffer: ByteBuffer): Unit {
-        FrameWriter.encodeFrame(this, buffer, buffer.position())
     }
 }

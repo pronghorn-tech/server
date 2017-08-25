@@ -1,9 +1,8 @@
 package tech.pronghorn.server
 
-import tech.pronghorn.http.HttpRequest
 import mu.KotlinLogging
-import tech.pronghorn.coroutines.awaitable.InternalFuture
 import tech.pronghorn.coroutines.awaitable.InternalQueue
+import tech.pronghorn.http.HttpRequest
 import tech.pronghorn.http.HttpResponse
 import tech.pronghorn.plugins.spscQueue.SpscQueuePlugin
 import tech.pronghorn.server.bufferpools.PooledByteBuffer
@@ -12,11 +11,6 @@ import tech.pronghorn.server.services.ResponseWriterService
 import tech.pronghorn.util.runAllIgnoringExceptions
 import tech.pronghorn.util.write
 import tech.pronghorn.websocket.core.ParsedHttpRequest
-import tech.pronghorn.websocket.core.WebsocketHandshaker
-import tech.pronghorn.websocket.protocol.WebsocketFrame
-import java.io.IOException
-import java.net.ConnectException
-import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.CancelledKeyException
 import java.nio.channels.ClosedChannelException
@@ -37,17 +31,18 @@ const val percentByte: Byte = 0x25
 const val questionByte: Byte = 0x3F
 const val atByte: Byte = 0x40
 
-abstract class HttpConnection(val worker: HttpWorker,
-                              val socket: SocketChannel,
-                              val selectionKey: SelectionKey) {
+open class HttpServerConnection(val worker: HttpServerWorker,
+                                val socket: SocketChannel,
+                                val selectionKey: SelectionKey) {
     companion object {
         private const val responseQueueSize = 64
     }
 
     private var isClosed = false
     private val logger = KotlinLogging.logger {}
-    abstract val shouldSendMasked: Boolean
-    abstract val requiresMasked: Boolean
+    //    abstract val shouldSendMasked: Boolean
+//    abstract val requiresMasked: Boolean
+//    private var outstandingRequests = 0
     var isReadQueued = false
 
     var isHandshakeComplete = false
@@ -64,11 +59,11 @@ abstract class HttpConnection(val worker: HttpWorker,
     private val readyResponseReader = readyResponses.queueReader
 
     private val connectionWriter by lazy(LazyThreadSafetyMode.NONE) {
-        worker.requestInternalWriter<HttpConnection, ResponseWriterService>()
+        worker.requestInternalWriter<HttpServerConnection, ResponseWriterService>()
     }
 
     private val requestsReadyWriter by lazy(LazyThreadSafetyMode.NONE) {
-        worker.requestInternalWriter<HttpConnection, HttpRequestHandlerService>()
+        worker.requestInternalWriter<HttpServerConnection, HttpRequestHandlerService>()
     }
 
 
@@ -201,22 +196,22 @@ abstract class HttpConnection(val worker: HttpWorker,
         return null
     }
 
-    abstract fun handleHandshakeRequest(request: ParsedHttpRequest,
-                                        handshaker: WebsocketHandshaker): Boolean
+//    abstract fun handleHandshakeRequest(request: ParsedHttpRequest,
+//                                        handshaker: WebsocketHandshaker): Boolean
 
 
-    fun attemptHandshake(handshaker: WebsocketHandshaker) {
-        val request = parseHandshakeRequest()
-        if (request != null) {
-            // With a request, handleHandshake either succeeds, or closes the connection
-            val success = handleHandshakeRequest(request, handshaker)
-            if (success) {
-                isHandshakeComplete = true
-                selectionKey.interestOps(selectionKey.interestOps() or SelectionKey.OP_READ)
-                worker.clearPendingConnection(this)
-            }
-        }
-    }
+//    fun attemptHandshake(handshaker: WebsocketHandshaker) {
+//        val request = parseHandshakeRequest()
+//        if (request != null) {
+//            // With a request, handleHandshake either succeeds, or closes the connection
+//            val success = handleHandshakeRequest(request, handshaker)
+//            if (success) {
+//                isHandshakeComplete = true
+//                selectionKey.interestOps(selectionKey.interestOps() or SelectionKey.OP_READ)
+//                worker.clearPendingConnection(this)
+//            }
+//        }
+//    }
 
     suspend fun appendResponse(response: HttpResponse) {
         val empty = readyResponseReader.isEmpty()
@@ -233,20 +228,31 @@ abstract class HttpConnection(val worker: HttpWorker,
         }
     }
 
-    private val queuedRequestsQueue = SpscQueuePlugin.get<HttpRequest>(1024)
-    private val queuedRequests = InternalQueue(queuedRequestsQueue)
-    private val queuedRequestsWriter = queuedRequests.queueWriter
-    private val queuedRequestsReader = queuedRequests.queueReader
+//    private val queuedRequestsQueue = SpscQueuePlugin.get<HttpRequest>(1024)
+//    private val queuedRequests = InternalQueue(queuedRequestsQueue)
+//    private val queuedRequestsWriter = queuedRequests.queueWriter
+//    private val queuedRequestsReader = queuedRequests.queueReader
+
+    val queuedRequests = ArrayDeque<HttpRequest>(1024)
 
     suspend fun queueRequest(request: HttpRequest) {
-        if (queuedRequestsReader.isEmpty()) {
-            requestsReadyWriter.addAsync(this)
+        val wasEmpty = queuedRequests.isEmpty()
+        queuedRequests.add(request)
+        if (wasEmpty) {
+            if (requestsReadyWriter.offer(this)) {
+                requestsReadyWriter.addAsync(this)
+            }
         }
-        queuedRequestsWriter.addAsync(request)
+
+//        if (queuedRequestsReader.isEmpty()) {
+//            requestsReadyWriter.addAsync(this)
+//        }
+//        queuedRequestsWriter.addAsync(request)
     }
 
     suspend fun handleRequests(worker: HttpServerWorker) {
-        var request = queuedRequestsReader.poll()
+        var request = queuedRequests.poll()
+        //var request = queuedRequestsReader.poll()
         while (request != null) {
             val handler = worker.getHandler(request.url.getPathBytes())
             if (handler == null) {
@@ -256,7 +262,8 @@ abstract class HttpConnection(val worker: HttpWorker,
                 val response = handler.handleRequest(request)
                 appendResponse(response)
             }
-            request = queuedRequestsReader.poll()
+            request = queuedRequests.poll()
+//            request = queuedRequestsReader.poll()
         }
     }
 
@@ -330,9 +337,7 @@ abstract class HttpConnection(val worker: HttpWorker,
 
     fun renderResponse(buffer: ByteBuffer,
                        response: HttpResponse): Boolean {
-//        val dateBytes = worker.getDateHeaderValue()
         val size = response.getOutputSize()
-        //val start = buffer.position()
 
         if (buffer.remaining() < size) {
             return false
@@ -343,8 +348,10 @@ abstract class HttpConnection(val worker: HttpWorker,
         buffer.put(response.code.bytes)
         buffer.putShort(carriageReturnNewLineShort)
 
+        buffer.put(response.connection.worker.getCommonHeaders())
+
         response.headers.forEach { header ->
-            header.writeHeader(buffer, buffer.position())
+            header.writeHeader(buffer)
         }
 
         buffer.putShort(carriageReturnNewLineShort)
@@ -369,7 +376,8 @@ abstract class HttpConnection(val worker: HttpWorker,
 //    }
 }
 
-class HttpServerConnection(worker: HttpServerWorker,
+/*
+class WebsocketServerConnection(worker: HttpServerWorker,
                            socket: SocketChannel,
                            selectionKey: SelectionKey) : HttpConnection(worker, socket, selectionKey) {
     override val shouldSendMasked: Boolean = false
@@ -396,7 +404,9 @@ class HttpServerConnection(worker: HttpServerWorker,
         }
     }
 }
+*/
 
+/*
 class HttpClientConnection(worker: HttpClientWorker,
                            socket: SocketChannel,
                            selectionKey: SelectionKey,
@@ -449,14 +459,14 @@ class HttpClientConnection(worker: HttpClientWorker,
         return true
     }
 }
+*/
 
 internal class DummyConnection(worker: HttpWorker,
                                socket: SocketChannel,
-                               selectionKey: SelectionKey) : HttpConnection(worker, socket, selectionKey) {
+                               selectionKey: SelectionKey) : HttpServerConnection(worker, socket, selectionKey) {
 
-    override fun handleHandshakeRequest(request: ParsedHttpRequest, handshaker: WebsocketHandshaker): Boolean = false
-
-    override val shouldSendMasked: Boolean = false
-    override val requiresMasked: Boolean = false
+//    override fun handleHandshakeRequest(request: ParsedHttpRequest, handshaker: WebsocketHandshaker): Boolean = false
+//    override val shouldSendMasked: Boolean = false
+//    override val requiresMasked: Boolean = false
 
 }

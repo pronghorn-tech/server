@@ -3,12 +3,12 @@ package tech.pronghorn.server.services
 import mu.KotlinLogging
 import tech.pronghorn.coroutines.core.CoroutineWorker
 import tech.pronghorn.coroutines.service.InternalQueueService
-import tech.pronghorn.websocket.core.WebsocketHandshaker
-import tech.pronghorn.server.HttpClientConnection
+//import tech.pronghorn.server.HttpClientConnection
 import java.nio.channels.SelectionKey
 import java.nio.channels.Selector
 import java.util.*
 
+/*
 class WebsocketConnectionFinisherService(override val worker: CoroutineWorker,
                                          val selector: Selector,
                                          private val randomGenerator: Random) : InternalQueueService<HttpClientConnection>() {
@@ -26,3 +26,4 @@ class WebsocketConnectionFinisherService(override val worker: CoroutineWorker,
         return true
     }
 }
+*/

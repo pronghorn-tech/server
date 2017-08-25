@@ -21,5 +21,5 @@ private class PlaintextHandler : HttpRequestHandler() {
 
 fun main(args: Array<String>) {
     val server = HttpServer(HttpServerConfig(InetSocketAddress("10.0.2.1", 2648)))
-    server.registerUrl("/plaintext", PlaintextHandler())
+    server.registerUrlHandler("/plaintext", PlaintextHandler())
 }

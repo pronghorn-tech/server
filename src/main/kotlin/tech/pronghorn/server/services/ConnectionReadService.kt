@@ -1,17 +1,15 @@
 package tech.pronghorn.server.services
 
-import tech.pronghorn.http.HttpRequest
-import tech.pronghorn.http.HttpRequestParser
 import mu.KotlinLogging
 import tech.pronghorn.coroutines.service.InternalQueueService
-import tech.pronghorn.websocket.protocol.FrameParser
-import tech.pronghorn.websocket.protocol.WebsocketFrame
-import tech.pronghorn.server.HttpConnection
+import tech.pronghorn.http.HttpRequest
+import tech.pronghorn.http.HttpRequestParser
+import tech.pronghorn.server.HttpServerConnection
 import tech.pronghorn.server.HttpWorker
 import java.io.IOException
 import java.nio.channels.SelectionKey
 
-class ConnectionReadService(override val worker: HttpWorker) : InternalQueueService<HttpConnection>() {
+class ConnectionReadService(override val worker: HttpWorker) : InternalQueueService<HttpServerConnection>() {
     override val logger = KotlinLogging.logger {}
     private val maxFramesParsed = 64
 //    private var connectionsProcessed = 0
@@ -24,9 +22,9 @@ class ConnectionReadService(override val worker: HttpWorker) : InternalQueueServ
         worker.requestInternalWriter<HttpRequest, HttpRequestHandlerPerRequestService>()
     }
 
-    private val frameWriter by lazy(LazyThreadSafetyMode.NONE) {
-        worker.requestInternalWriter<WebsocketFrame, FrameHandlerService>()
-    }
+//    private val frameWriter by lazy(LazyThreadSafetyMode.NONE) {
+//        worker.requestInternalWriter<WebsocketFrame, FrameHandlerService>()
+//    }
 
 /*
     override fun shouldYield(): Boolean {
@@ -40,7 +38,7 @@ class ConnectionReadService(override val worker: HttpWorker) : InternalQueueServ
     }
 */
 
-    override suspend fun process(connection: HttpConnection): Boolean {
+    override suspend fun process(connection: HttpServerConnection): Boolean {
 //        connectionsProcessed += 1
 //        val preRead = System.currentTimeMillis()
         val bytesRead = connection.readIntoBuffer()
@@ -75,7 +73,7 @@ class ConnectionReadService(override val worker: HttpWorker) : InternalQueueServ
         return true
     }
 
-    suspend fun processOLD(connection: HttpConnection): Boolean {
+    suspend fun processOLD(connection: HttpServerConnection): Boolean {
 //        connectionsProcessed += 1
         var totalRequestsParsed = 0
         var bytesRead = connection.readIntoBuffer()
@@ -128,7 +126,8 @@ class ConnectionReadService(override val worker: HttpWorker) : InternalQueueServ
         }
     }
 
-    suspend fun processWEBSOCKET(connection: HttpConnection): Boolean {
+    /*
+    suspend fun processWEBSOCKET(connection: HttpServerConnection): Boolean {
 //        connectionsProcessed += 1
         var totalFramesParsed = 0
         var bytesRead = connection.readIntoBuffer()
@@ -173,8 +172,9 @@ class ConnectionReadService(override val worker: HttpWorker) : InternalQueueServ
             return true
         }
     }
+    */
 
-    private fun HttpConnection.readIntoBuffer(): Int {
+    private fun HttpServerConnection.readIntoBuffer(): Int {
         val buffer = getReadBuffer()
         if (!buffer.hasRemaining()) {
             // buffer is already full
@@ -212,7 +212,7 @@ class ConnectionReadService(override val worker: HttpWorker) : InternalQueueServ
         return totalRead
     }
 
-    private suspend fun HttpConnection.parseRequests(maxToParse: Int): Int {
+    private suspend fun HttpServerConnection.parseRequests(maxToParse: Int): Int {
         val buffer = getReadBuffer()
         if (!buffer.hasRemaining()) {
             return 0
@@ -251,7 +251,8 @@ class ConnectionReadService(override val worker: HttpWorker) : InternalQueueServ
         return requestsParsed
     }
 
-    private suspend fun HttpConnection.parseFrames(maxToParse: Int): Int {
+    /*
+    private suspend fun HttpServerConnection.parseFrames(maxToParse: Int): Int {
         val buffer = getReadBuffer()
         if (buffer.position() == 0) {
             return 0
@@ -286,4 +287,5 @@ class ConnectionReadService(override val worker: HttpWorker) : InternalQueueServ
 
         return framesParsed
     }
+    */
 }
