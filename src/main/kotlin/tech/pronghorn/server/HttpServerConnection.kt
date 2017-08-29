@@ -4,9 +4,11 @@ import mu.KotlinLogging
 import tech.pronghorn.coroutines.awaitable.InternalQueue
 import tech.pronghorn.http.HttpExchange
 import tech.pronghorn.http.HttpResponse
+import tech.pronghorn.http.HttpResponses
 import tech.pronghorn.http.protocol.HttpVersion
 import tech.pronghorn.plugins.spscQueue.SpscQueuePlugin
 import tech.pronghorn.server.bufferpools.PooledByteBuffer
+import tech.pronghorn.server.core.StaticHttpRequestHandler
 import tech.pronghorn.server.services.HttpRequestHandlerService
 import tech.pronghorn.server.services.ResponseWriterService
 import tech.pronghorn.util.runAllIgnoringExceptions
@@ -32,6 +34,8 @@ const val percentByte: Byte = 0x25
 const val questionByte: Byte = 0x3F
 const val atByte: Byte = 0x40
 
+private val genericNotFoundHandler = StaticHttpRequestHandler(HttpResponses.NotFound())
+
 open class HttpServerConnection(val worker: HttpServerWorker,
                                 val socket: SocketChannel,
                                 val selectionKey: SelectionKey) {
@@ -41,15 +45,8 @@ open class HttpServerConnection(val worker: HttpServerWorker,
 
     private var isClosed = false
     private val logger = KotlinLogging.logger {}
-    //    abstract val shouldSendMasked: Boolean
-//    abstract val requiresMasked: Boolean
-//    private var outstandingRequests = 0
     var isReadQueued = false
 
-    var isHandshakeComplete = false
-        private set
-
-    private val connectTime = System.currentTimeMillis()
     private var handshakeBuffer: PooledByteBuffer? = null
     private var readBuffer: PooledByteBuffer? = null
     private var writeBuffer: PooledByteBuffer? = null
@@ -86,40 +83,6 @@ open class HttpServerConnection(val worker: HttpServerWorker,
     fun releaseHandshakeBuffer() {
         handshakeBuffer?.release()
         handshakeBuffer = null
-    }
-
-    fun removeInterestOps(removeInterestOps: Int) {
-        try {
-            selectionKey.interestOps(selectionKey.interestOps() and removeInterestOps.inv())
-        }
-        catch (ex: CancelledKeyException) {
-            close("Connection closed.")
-        }
-    }
-
-    fun addInterestOps(newInterestOps: Int) {
-        try {
-            selectionKey.interestOps(selectionKey.interestOps() or newInterestOps)
-        }
-        catch (ex: CancelledKeyException) {
-            close("Connection closed.")
-        }
-    }
-
-    fun updateInterestOps(newInterestOps: Int) {
-        try {
-            selectionKey.interestOps(newInterestOps)
-        }
-        catch (ex: CancelledKeyException) {
-            close("Connection closed.")
-        }
-    }
-
-    private fun getHandshakeBuffer(): ByteBuffer {
-        if (handshakeBuffer == null) {
-            handshakeBuffer = worker.handshakeBufferPool.getBuffer()
-        }
-        return handshakeBuffer!!.buffer
     }
 
     fun getReadBuffer(): ByteBuffer {
@@ -196,14 +159,8 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         var request = queuedRequests.poll()
         //var request = queuedRequestsReader.poll()
         while (request != null) {
-            val handler = worker.getHandler(request.requestUrl.getPathBytes())
-            if (handler == null) {
-                logger.error("Could not fetch requestUrl: ${request.requestUrl.getPath()}")
-            }
-            else {
-                /*val response = */handler.handle(request)
-                //appendResponse(response)
-            }
+            val handler = worker.getHandler(request.requestUrl.getPathBytes()) ?: genericNotFoundHandler
+            handler.handle(request)
             request = queuedRequests.poll()
 //            request = queuedRequestsReader.poll()
         }

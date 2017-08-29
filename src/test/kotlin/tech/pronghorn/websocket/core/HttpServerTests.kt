@@ -8,6 +8,7 @@ import tech.pronghorn.http.protocol.*
 import tech.pronghorn.server.*
 import tech.pronghorn.server.config.HttpServerConfig
 import tech.pronghorn.server.core.DirectHttpRequestHandler
+import tech.pronghorn.server.core.StaticHttpRequestHandler
 import tech.pronghorn.test.CDBTest
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -19,15 +20,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 data class JsonExample(val message: String)
-
-class HelloWorldHandler : DirectHttpRequestHandler() {
-    private val helloBytes = "Hello, World!".toByteArray(Charsets.US_ASCII)
-    private val response = HttpResponses.OK(helloBytes, CommonContentTypes.TextPlain)
-
-    suspend override fun handleDirect(exchange: HttpExchange): HttpResponse {
-        return response
-    }
-}
 
 class JsonHandler : DirectHttpRequestHandler() {
     suspend override fun handleDirect(exchange: HttpExchange): HttpResponse {
@@ -221,7 +213,6 @@ class HttpServerTests : CDBTest() {
             val batchSize = 1
             val batchCount = 128 * 128
 
-            val counterHandler = HelloWorldHandler()
             val serverConfig = HttpServerConfig(address, serverThreadCount)
 
             val server = HttpServer(serverConfig)
@@ -235,8 +226,12 @@ class HttpServerTests : CDBTest() {
 //            server.registerUrlHandler("/plaintext", counterHandler)
 //            server.registerUrlHandler("/plaintext", HttpMethod.GET, counterHandler)
 
-            server.registerUrlHandler("/plaintext", HelloWorldHandler())
-            server.registerUrlHandler("/json", JsonHandler())
+            val helloWorldResponse = HttpResponses.OK("Hello, World!".toByteArray(Charsets.US_ASCII), CommonContentTypes.TextPlain)
+            val helloWorldHandler = StaticHttpRequestHandler(helloWorldResponse)
+            val jsonHandler = JsonHandler()
+
+            server.registerUrlHandler("/plaintext", helloWorldHandler)
+            server.registerUrlHandler("/json", jsonHandler)
 
             server.start()
 

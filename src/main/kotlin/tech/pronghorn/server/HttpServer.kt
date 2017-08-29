@@ -19,27 +19,41 @@ import java.util.concurrent.locks.ReentrantLock
 data class RegisterURLHandlerMessage(val url: String,
                                      val handlerGenerator: () -> HttpRequestHandler) : InterWorkerMessage
 
+interface ConnectionDistributionStrategy {
+    val workers: Set<HttpServerWorker>
+    fun getWorker(): HttpServerWorker
+}
+
+class RoundRobinConnectionDistributionStrategy(override val workers: Set<HttpServerWorker>): ConnectionDistributionStrategy {
+    private var lastWorkerID = 0
+    val workerCount = workers.size
+
+    override fun getWorker(): HttpServerWorker {
+        return workers.elementAt(lastWorkerID++ % workerCount)
+    }
+}
+
 class HttpServer(val config: HttpServerConfig) {
     private val logger = mu.KotlinLogging.logger {}
     private val serverSocket: ServerSocketChannel = ServerSocketChannel.open()
     private val workers = ConcurrentSetPlugin.get<HttpServerWorker>()
     private val workerSocketWriters = ConcurrentMapPlugin.get<HttpServerWorker, QueueWriter<SocketChannel>>()
-    private var lastWorkerID = 0
+
     private val acceptLock = ReentrantLock()
     var isRunning = false
         private set
 
     init {
         serverSocket.configureBlocking(false)
-    }
 
-    init {
         for (x in 1..config.workerCount) {
             val worker = HttpServerWorker(this, config)
             workerSocketWriters.put(worker, worker.requestSingleExternalWriter<SocketChannel, ServerConnectionCreationService>())
             workers.add(worker)
         }
     }
+
+    private val distributionStrategy = RoundRobinConnectionDistributionStrategy(workers)
 
     fun start() {
         logger.debug { "Starting server on ${config.address} with ${config.workerCount} workers" }
@@ -71,7 +85,7 @@ class HttpServer(val config: HttpServerConfig) {
     }
 
     private fun getBestWorker(): HttpServerWorker {
-        return workers.elementAt(lastWorkerID++ % config.workerCount)
+        return distributionStrategy.getWorker()
     }
 
     fun registerUrlHandlerGenerator(url: String,
@@ -88,7 +102,7 @@ class HttpServer(val config: HttpServerConfig) {
 
     fun registerUrlHandler(url: String,
                            method: HttpMethod,
-                           handler: HttpRequestHandler){
+                           handler: HttpRequestHandler) {
         TODO()
     }
 

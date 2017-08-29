@@ -13,7 +13,6 @@ object HttpRequestParser {
     fun parse(buffer: ByteBuffer,
               connection: HttpServerConnection): HttpParseResult {
         val start = buffer.position()
-        val bytes = ByteArray(0)
 
         var firstSpace = -1
         while (buffer.hasRemaining()) {
@@ -151,12 +150,14 @@ object HttpRequestParser {
             return IncompleteRequestParseError
         }
 
-//        val pre = buffer.position()
-//        val fullArr = ByteArray(headersEnd)
-//        buffer.position(0)
-//        buffer.get(fullArr)
-//        println(String(fullArr, Charsets.US_ASCII))
-//        buffer.position(pre)
+        if(logger.isDebugEnabled) {
+            val pre = buffer.position()
+            val fullArr = ByteArray(headersEnd)
+            buffer.position(0)
+            buffer.get(fullArr)
+            logger.debug(String(fullArr, Charsets.US_ASCII))
+            buffer.position(pre)
+        }
 
         return HttpExchange(method, url, version, headers, connection, body)
     }

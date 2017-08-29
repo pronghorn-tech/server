@@ -5,7 +5,7 @@ package tech.pronghorn.websocket.services
 //import mu.KotlinLogging
 //import tech.pronghorn.coroutines.awaitable.ServiceManagedCoroutineContext
 //import tech.pronghorn.coroutines.core.CoroutineWorker
-//import tech.pronghorn.coroutines.core.myRun
+//import tech.pronghorn.coroutines.core.launchServiceCoroutine
 //import tech.pronghorn.coroutines.service.InternalQueueService
 //import tech.pronghorn.websocket.protocol.WebsocketFrame
 //import tech.pronghorn.websocket.core.FrameHandler
@@ -17,7 +17,7 @@ package tech.pronghorn.websocket.services
 //    private val context = ServiceManagedCoroutineContext(this)
 //
 //    override suspend fun process(frame: WebsocketFrame): Boolean {
-//        myRun(context){
+//        launchServiceCoroutine(context){
 //            frameHandler.handleFrame(frame)
 //        }
 //        return true

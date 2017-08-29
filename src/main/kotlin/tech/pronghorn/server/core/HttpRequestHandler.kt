@@ -15,3 +15,9 @@ abstract class DirectHttpRequestHandler : HttpRequestHandler() {
 
     internal abstract suspend fun handleDirect(exchange: HttpExchange): HttpResponse
 }
+
+class StaticHttpRequestHandler(val response: HttpResponse): HttpRequestHandler() {
+    override suspend fun handle(exchange: HttpExchange) {
+        exchange.sendResponse(response)
+    }
+}

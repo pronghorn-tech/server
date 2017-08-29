@@ -2,8 +2,7 @@ package tech.pronghorn.server.services
 
 import mu.KotlinLogging
 import tech.pronghorn.coroutines.service.InternalQueueService
-import tech.pronghorn.http.HttpExchange
-import tech.pronghorn.http.HttpRequestParser
+import tech.pronghorn.http.*
 import tech.pronghorn.server.HttpServerConnection
 import tech.pronghorn.server.HttpWorker
 import java.io.IOException
@@ -66,7 +65,6 @@ class ConnectionReadService(override val worker: HttpWorker) : InternalQueueServ
 
         try {
             var request = HttpRequestParser.parse(buffer, this)
-            // TODO: handle certain parse errors properly here.
             while (request is HttpExchange) {
 //                requestWriter.addAsync(request) // Faster for non-pipelining
                 queueRequest(request) // Faster for pipelining
@@ -75,7 +73,12 @@ class ConnectionReadService(override val worker: HttpWorker) : InternalQueueServ
                     break
                 }
                 request = HttpRequestParser.parse(buffer, this)
-                // TODO: handle certain parse errors properly here.
+            }
+
+            when(request) {
+                is InvalidVersionParseError -> TODO()
+                is InvalidMethodParseError -> TODO()
+                is IncompleteRequestParseError -> TODO()
             }
         }
         catch (ex: Exception) {
