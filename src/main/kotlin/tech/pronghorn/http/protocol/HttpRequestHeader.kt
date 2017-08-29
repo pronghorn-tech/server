@@ -81,12 +81,12 @@ import tech.pronghorn.util.finder.FinderGenerator
 //                Warning
 //        )
 //
-//        private val maxLength = values.map { method -> method.bytes.size }.max() ?: 0
+//        private val maxLength = values.map { requestMethod -> requestMethod.bytes.size }.max() ?: 0
 //        val byLength = arrayOfNulls<Array<HttpRequestHeader>>(maxLength + 1)
 //        init {
 //            var x = 0
 //            while(x < byLength.size){
-//                byLength[x] = values.filter { method -> method.bytes.size == x }.toTypedArray()
+//                byLength[x] = values.filter { requestMethod -> requestMethod.bytes.size == x }.toTypedArray()
 //                x += 1
 //            }
 //        }
@@ -167,12 +167,12 @@ import tech.pronghorn.util.finder.FinderGenerator
 //            Warning
 //    )
 //
-//    private val maxLength = values.map { method -> method.bytes.size }.max() ?: 0
+//    private val maxLength = values.map { requestMethod -> requestMethod.bytes.size }.max() ?: 0
 //    val byLength = arrayOfNulls<Array<HttpRequestHeader1>>(maxLength + 1)
 //    init {
 //        var x = 0
 //        while(x < byLength.size){
-//            byLength[x] = values.filter { method -> method.bytes.size == x }.toTypedArray()
+//            byLength[x] = values.filter { requestMethod -> requestMethod.bytes.size == x }.toTypedArray()
 //            x += 1
 //        }
 //    }
@@ -184,7 +184,7 @@ interface HttpRequestHeader: ByteBacked {
 }
 
 class CustomHttpRequestHeader(private val value: Either<AsciiString, String>) : HttpRequestHeader {
-    constructor(location: AsciiString): this(Either.Left(location))
+    constructor(value: AsciiString): this(Either.Left(value))
 
     constructor(name: String): this(Either.Right(name))
 
@@ -205,8 +205,8 @@ class CustomHttpRequestHeader(private val value: Either<AsciiString, String>) : 
 //    }
 }
 
-enum class StandardHttpRequestHeaders(val _headerName: String,
-                                      val parseName: String = _headerName.toLowerCase(),
+enum class StandardHttpRequestHeaders(val displayName: String,
+                                      val parseName: String = displayName.toLowerCase(),
                                       override val bytes: ByteArray = parseName.toByteArray()) : HttpRequestHeader {
     Accept("Accept"),
     AcceptCharset("Accept-Charset"),
@@ -243,7 +243,7 @@ enum class StandardHttpRequestHeaders(val _headerName: String,
     Via("Via"),
     Warning("Warning");
 
-    override fun getHeaderName(): String = _headerName
+    override fun getHeaderName(): String = displayName
 
     companion object: ByteBackedFinder<StandardHttpRequestHeaders> by standardHeaderFinder {
         fun registerHeader(header: CustomHttpRequestHeader){

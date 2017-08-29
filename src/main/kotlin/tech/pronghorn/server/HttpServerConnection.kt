@@ -2,8 +2,9 @@ package tech.pronghorn.server
 
 import mu.KotlinLogging
 import tech.pronghorn.coroutines.awaitable.InternalQueue
-import tech.pronghorn.http.HttpRequest
+import tech.pronghorn.http.HttpExchange
 import tech.pronghorn.http.HttpResponse
+import tech.pronghorn.http.protocol.HttpVersion
 import tech.pronghorn.plugins.spscQueue.SpscQueuePlugin
 import tech.pronghorn.server.bufferpools.PooledByteBuffer
 import tech.pronghorn.server.services.HttpRequestHandlerService
@@ -154,65 +155,6 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         releaseBuffers()
     }
 
-    fun connectionTime(): Long {
-        return System.currentTimeMillis() - connectTime
-    }
-
-    private fun parseHandshakeRequest(): ParsedHttpRequest? {
-        TODO()
-//        if (!socket.isOpen) {
-//            return null
-//        }
-//
-//        val buffer = getHandshakeBuffer()
-//        val read = socket.read(buffer)
-//        if (read < 0) {
-//            close("Disconnected.")
-//            return null
-//        }
-//
-//        if (read > 0) {
-//            buffer.flip()
-//            val request = HttpRequestParser.parse(buffer)
-//            if (request == null) {
-//                if (buffer.limit() == buffer.capacity()) {
-//                    // The entire handshake buffer is full, but still no valid handshake
-//                    close("Websocket handshake not received before data or too large.")
-//                    return null
-//                } else {
-//                    // Handshake assumed to be partially read, reset the buffer for more reading
-//                    buffer.position(buffer.limit())
-//                    buffer.limit(buffer.capacity())
-//                    // Set the appropriate interestOps for more reading
-//                    selectionKey.interestOps(selectionKey.interestOps() or SelectionKey.OP_READ)
-//                    return null
-//                }
-//            } else {
-//                releaseHandshakeBuffer()
-//                return request
-//            }
-//        }
-
-        return null
-    }
-
-//    abstract fun handleHandshakeRequest(request: ParsedHttpRequest,
-//                                        handshaker: WebsocketHandshaker): Boolean
-
-
-//    fun attemptHandshake(handshaker: WebsocketHandshaker) {
-//        val request = parseHandshakeRequest()
-//        if (request != null) {
-//            // With a request, handleHandshake either succeeds, or closes the connection
-//            val success = handleHandshakeRequest(request, handshaker)
-//            if (success) {
-//                isHandshakeComplete = true
-//                selectionKey.interestOps(selectionKey.interestOps() or SelectionKey.OP_READ)
-//                worker.clearPendingConnection(this)
-//            }
-//        }
-//    }
-
     suspend fun appendResponse(response: HttpResponse) {
         val empty = readyResponseReader.isEmpty()
         // TODO: is this better than just the addAsync?
@@ -228,16 +170,16 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         }
     }
 
-//    private val queuedRequestsQueue = SpscQueuePlugin.get<HttpRequest>(1024)
+//    private val queuedRequestsQueue = SpscQueuePlugin.get<HttpExchange>(1024)
 //    private val queuedRequests = InternalQueue(queuedRequestsQueue)
 //    private val queuedRequestsWriter = queuedRequests.queueWriter
 //    private val queuedRequestsReader = queuedRequests.queueReader
 
-    val queuedRequests = ArrayDeque<HttpRequest>(1024)
+    val queuedRequests = ArrayDeque<HttpExchange>(1024)
 
-    suspend fun queueRequest(request: HttpRequest) {
+    suspend fun queueRequest(exchange: HttpExchange) {
         val wasEmpty = queuedRequests.isEmpty()
-        queuedRequests.add(request)
+        queuedRequests.add(exchange)
         if (wasEmpty) {
             if (requestsReadyWriter.offer(this)) {
                 requestsReadyWriter.addAsync(this)
@@ -247,20 +189,20 @@ open class HttpServerConnection(val worker: HttpServerWorker,
 //        if (queuedRequestsReader.isEmpty()) {
 //            requestsReadyWriter.addAsync(this)
 //        }
-//        queuedRequestsWriter.addAsync(request)
+//        queuedRequestsWriter.addAsync(exchange)
     }
 
-    suspend fun handleRequests(worker: HttpServerWorker) {
+    suspend fun handleRequests() {
         var request = queuedRequests.poll()
         //var request = queuedRequestsReader.poll()
         while (request != null) {
-            val handler = worker.getHandler(request.url.getPathBytes())
+            val handler = worker.getHandler(request.requestUrl.getPathBytes())
             if (handler == null) {
-                logger.error("Could not fetch url: ${request.url.getPath()}")
+                logger.error("Could not fetch requestUrl: ${request.requestUrl.getPath()}")
             }
             else {
-                val response = handler.handleRequest(request)
-                appendResponse(response)
+                /*val response = */handler.handle(request)
+                //appendResponse(response)
             }
             request = queuedRequests.poll()
 //            request = queuedRequestsReader.poll()
@@ -337,29 +279,24 @@ open class HttpServerConnection(val worker: HttpServerWorker,
 
     fun renderResponse(buffer: ByteBuffer,
                        response: HttpResponse): Boolean {
-        val size = response.getOutputSize()
+        val size = response.getOutputSize() + worker.commonHeaderSize
 
         if (buffer.remaining() < size) {
             return false
         }
 
-        buffer.put(response.httpVersion.bytes)
+        buffer.put(HttpVersion.HTTP11.bytes)
         buffer.put(spaceByte)
         buffer.put(response.code.bytes)
         buffer.putShort(carriageReturnNewLineShort)
 
-        buffer.put(response.connection.worker.getCommonHeaders())
+        buffer.put(worker.getCommonHeaders())
 
-        response.headers.forEach { header ->
-            header.writeHeader(buffer)
-        }
+        response.writeHeaders(buffer)
 
         buffer.putShort(carriageReturnNewLineShort)
 
-        if (response.body.isNotEmpty()) {
-            buffer.put(response.body, 0, response.body.size)
-        }
-
+        response.writeBody(buffer)
         return true
     }
 
@@ -375,36 +312,6 @@ open class HttpServerConnection(val worker: HttpServerWorker,
 //        }
 //    }
 }
-
-/*
-class WebsocketServerConnection(worker: HttpServerWorker,
-                           socket: SocketChannel,
-                           selectionKey: SelectionKey) : HttpConnection(worker, socket, selectionKey) {
-    override val shouldSendMasked: Boolean = false
-    override val requiresMasked: Boolean = true
-
-    override fun handleHandshakeRequest(request: ParsedHttpRequest,
-                                        handshaker: WebsocketHandshaker): Boolean {
-        val headers = request.headers
-        val key = headers["Sec-WebSocket-Key"]
-        if (key == null) {
-            close("Websocket handshakes must include a Sec-WebSocket-Key header.")
-            return false
-        }
-        else {
-            val handshake = handshaker.getServerHandshakeResponse(key)
-            try {
-                socket.write(handshake)
-                return true
-            }
-            catch (e: IOException) {
-                close("Unexpected error replying to initial handshake.")
-                return false
-            }
-        }
-    }
-}
-*/
 
 /*
 class HttpClientConnection(worker: HttpClientWorker,

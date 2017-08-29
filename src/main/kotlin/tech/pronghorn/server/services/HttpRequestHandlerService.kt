@@ -10,7 +10,7 @@ class HttpRequestHandlerService(override val worker: HttpServerWorker) : Interna
 //    private val context = ServiceManagedCoroutineContext(this)
 
     override suspend fun process(connection: HttpServerConnection): Boolean {
-        connection.handleRequests(worker)
+        connection.handleRequests()
 
         return true
     }

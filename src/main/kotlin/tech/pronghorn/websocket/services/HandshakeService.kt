@@ -1,3 +1,5 @@
+package tech.pronghorn.websocket.services
+
 //package tech.pronghorn.server.services
 //
 //import mu.KotlinLogging

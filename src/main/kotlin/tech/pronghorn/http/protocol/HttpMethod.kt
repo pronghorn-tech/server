@@ -4,16 +4,17 @@ import tech.pronghorn.util.finder.ByteBacked
 import tech.pronghorn.util.finder.ByteBackedFinder
 import tech.pronghorn.util.finder.FinderGenerator
 
-enum class HttpMethod(override val bytes: ByteArray): ByteBacked {
-    CONNECT("CONNECT".toByteArray(Charsets.US_ASCII)),
-    DELETE("DELETE".toByteArray(Charsets.US_ASCII)),
-    GET("GET".toByteArray(Charsets.US_ASCII)),
-    HEAD("HEAD".toByteArray(Charsets.US_ASCII)),
-    OPTIONS("OPTIONS".toByteArray(Charsets.US_ASCII)),
-    PATCH("PATCH".toByteArray(Charsets.US_ASCII)),
-    POST("POST".toByteArray(Charsets.US_ASCII)),
-    PUT("PUT".toByteArray(Charsets.US_ASCII)),
-    TRACE("TRACE".toByteArray(Charsets.US_ASCII));
+enum class HttpMethod(val methodName: String,
+                      override val bytes: ByteArray = methodName.toByteArray(Charsets.US_ASCII)): ByteBacked {
+    CONNECT("CONNECT"),
+    DELETE("DELETE"),
+    GET("GET"),
+    HEAD("HEAD"),
+    OPTIONS("OPTIONS"),
+    PATCH("PATCH"),
+    POST("POST"),
+    PUT("PUT"),
+    TRACE("TRACE");
 
     companion object : ByteBackedFinder<HttpMethod> by httpMethodFinder
 }

@@ -1,29 +1,17 @@
 package tech.pronghorn.server.core
 
-import tech.pronghorn.http.HttpRequest
+import tech.pronghorn.http.HttpExchange
 import tech.pronghorn.http.HttpResponse
-import tech.pronghorn.http.protocol.HttpMethod
 
 abstract class HttpRequestHandler {
-    internal suspend fun handleRequest(request: HttpRequest): HttpResponse {
-        return when (request.method) {
-            HttpMethod.GET -> handleGet(request)
-//            FrameType.PING -> handlePingFrame(frame as PingFrame)
-//            FrameType.PONG -> handlePongFrame(frame as PongFrame)
-//            FrameType.CLOSE -> handleCloseFrame(frame as CloseFrame)
-//            FrameType.BINARY -> handleBinaryFrame(frame as BinaryFrame)
-//            FrameType.CONTINUATION -> TODO()
-            else -> TODO()
-        }
+    internal abstract suspend fun handle(exchange: HttpExchange)
+}
+
+abstract class DirectHttpRequestHandler : HttpRequestHandler() {
+    override suspend fun handle(exchange: HttpExchange) {
+        val response = handleDirect(exchange)
+        exchange.sendResponse(response)
     }
 
-    protected abstract suspend fun handleGet(request: HttpRequest): HttpResponse
-//
-//    protected abstract suspend fun handlePingFrame(frame: PingFrame): Unit
-//
-//    protected abstract suspend fun handlePongFrame(frame: PongFrame): Unit
-//
-//    protected abstract suspend fun handleCloseFrame(frame: CloseFrame): Unit
-//
-//    protected abstract suspend fun handleBinaryFrame(frame: BinaryFrame): Unit
+    internal abstract suspend fun handleDirect(exchange: HttpExchange): HttpResponse
 }

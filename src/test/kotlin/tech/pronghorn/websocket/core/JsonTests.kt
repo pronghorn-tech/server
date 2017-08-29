@@ -2,11 +2,8 @@ package tech.pronghorn.websocket.core
 
 import com.jsoniter.output.JsonStream
 import org.junit.Test
-import tech.pronghorn.http.HttpResponse
-import tech.pronghorn.http.protocol.HttpResponseCode
-import tech.pronghorn.http.protocol.HttpVersion
-import tech.pronghorn.server.DummyConnection
-import tech.pronghorn.server.DummyWorker
+import tech.pronghorn.http.HttpResponses
+import tech.pronghorn.http.protocol.CommonContentTypes
 import tech.pronghorn.test.CDBTest
 import java.nio.ByteBuffer
 import java.nio.channels.SelectionKey
@@ -32,22 +29,12 @@ class JsonTests : CDBTest() {
             socket.configureBlocking(false)
             val selector = Selector.open()
             val key = socket.register(selector, SelectionKey.OP_READ)
-            val dummyConnection = DummyConnection(TODO(), socket, key)
 
             while (x < count) {
                 val potato = Potato("Hello, World!$x")
                 val json = JsonStream.serialize(potato)
                 val utf = json.toByteArray(Charsets.UTF_8)
-                val response = HttpResponse(
-                        HttpResponseCode.OK,
-                        ArrayList(),
-                        //                        mapOf(
-//                                HttpResponseHeader.ContentType to CommonMimeTypes.Json.bytes
-//                        ),
-                        utf,
-                        HttpVersion.HTTP11,
-                        dummyConnection
-                )
+                val response = HttpResponses.OK(utf, CommonContentTypes.ApplicationJson)
 
                 //renderResponse(buffer, response)
                 total += buffer.position()

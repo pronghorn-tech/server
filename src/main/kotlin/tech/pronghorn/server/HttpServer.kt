@@ -3,6 +3,7 @@ package tech.pronghorn.server
 import tech.pronghorn.coroutines.awaitable.QueueWriter
 import tech.pronghorn.coroutines.core.CoroutineWorker
 import tech.pronghorn.coroutines.core.InterWorkerMessage
+import tech.pronghorn.http.protocol.HttpMethod
 import tech.pronghorn.plugins.concurrentMap.ConcurrentMapPlugin
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.config.HttpServerConfig
@@ -27,7 +28,10 @@ class HttpServer(val config: HttpServerConfig) {
     private val acceptLock = ReentrantLock()
     var isRunning = false
         private set
-    init { serverSocket.configureBlocking(false) }
+
+    init {
+        serverSocket.configureBlocking(false)
+    }
 
     init {
         for (x in 1..config.workerCount) {
@@ -51,7 +55,7 @@ class HttpServer(val config: HttpServerConfig) {
         try {
             workers.forEach(HttpServerWorker::shutdown)
         }
-        catch (ex: Exception){
+        catch (ex: Exception) {
             ex.printStackTrace()
         }
         finally {
@@ -71,21 +75,27 @@ class HttpServer(val config: HttpServerConfig) {
     }
 
     fun registerUrlHandlerGenerator(url: String,
-                    handlerGenerator: () -> HttpRequestHandler){
+                                    handlerGenerator: () -> HttpRequestHandler) {
         workers.forEach { worker ->
             worker.sendInterWorkerMessage(RegisterURLHandlerMessage(url, handlerGenerator))
         }
     }
 
     fun registerUrlHandler(url: String,
-                    handler: HttpRequestHandler) {
+                           handler: HttpRequestHandler) {
         registerUrlHandlerGenerator(url, { handler })
     }
 
-    val acceptGrouping = 128
+    fun registerUrlHandler(url: String,
+                           method: HttpMethod,
+                           handler: HttpRequestHandler){
+        TODO()
+    }
+
+    private val acceptGrouping = 128
 
     internal fun attemptAccept() {
-        if(acceptLock.tryLock()) {
+        if (acceptLock.tryLock()) {
             try {
                 logger.debug { "Accepting connections..." }
                 var acceptedSocket: SocketChannel? = serverSocket.accept()
@@ -100,14 +110,14 @@ class HttpServer(val config: HttpServerConfig) {
                         val workerWriter = workerSocketWriters.getValue(worker)
                         handled = workerWriter.offer(acceptedSocket)
                     }
-                    if(accepted > acceptGrouping){
+                    if (accepted > acceptGrouping) {
                         break
                     }
                     acceptedSocket = serverSocket.accept()
                 }
                 logger.debug { "Accepted $accepted connections." }
             }
-            catch (ex: IOException){
+            catch (ex: IOException) {
                 // no-op
             }
             finally {

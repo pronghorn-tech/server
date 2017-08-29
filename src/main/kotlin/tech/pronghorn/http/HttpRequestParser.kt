@@ -61,6 +61,8 @@ object HttpRequestParser {
 
         var headersEnd = -1
 
+        var contentLength = 0
+
         while (true) {
             val lineStart = buffer.position()
             var typeEnd = -1
@@ -115,12 +117,33 @@ object HttpRequestParser {
 
             val headerValue = AsciiString(buffer, valueStart, valueEnd - valueStart)
 
+            if(headerType == StandardHttpRequestHeaders.ContentLength){
+                val contentLengthBytes = headerValue.bytes
+                var v = 0
+                while(v < contentLengthBytes.size) {
+                    contentLength *= 10
+                    contentLength += contentLengthBytes[0]
+                    v += 1
+                }
+            }
+
             headers.put(headerType, headerValue)
 
             if (buffer.limit() >= lineEnd + 2 && buffer.get(lineEnd) == carriageReturnByte && buffer.get(lineEnd + 1) == newLineByte) {
                 buffer.position(buffer.position() + 2)
                 headersEnd = buffer.position()
                 break
+            }
+        }
+        var body: ByteArray? = null
+
+        if(contentLength > 0){
+            if(buffer.remaining() < contentLength){
+                return IncompleteRequestParseError
+            }
+            else {
+                body = ByteArray(contentLength)
+                buffer.get(body)
             }
         }
 
@@ -135,6 +158,6 @@ object HttpRequestParser {
 //        println(String(fullArr, Charsets.US_ASCII))
 //        buffer.position(pre)
 
-        return HttpRequest(bytes, method, url, version, headers, connection)
+        return HttpExchange(method, url, version, headers, connection, body)
     }
 }

@@ -5,6 +5,7 @@ import tech.pronghorn.coroutines.core.CoroutineWorker
 import tech.pronghorn.coroutines.core.InterWorkerMessage
 import tech.pronghorn.coroutines.service.Service
 import tech.pronghorn.http.ByteArrayResponseHeaderValue
+import tech.pronghorn.http.ResponseHeaderWithValue
 import tech.pronghorn.http.protocol.HttpResponseHeader
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.bufferpools.ConnectionBufferPool
@@ -161,10 +162,10 @@ class HttpServerWorker(val server: HttpServer,
 
     private fun calculateCommonHeaderCache(): ByteArray {
         val dateBytes = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(gmt)).toByteArray(Charsets.US_ASCII)
-        val dateHeader = ByteArrayResponseHeaderValue(HttpResponseHeader.Date, dateBytes)
+        val dateHeader = ResponseHeaderWithValue(HttpResponseHeader.Date, dateBytes)
 
         if(config.sendServerHeader){
-            val serverHeader = ByteArrayResponseHeaderValue(HttpResponseHeader.Server, config.serverName.toByteArray(Charsets.US_ASCII))
+            val serverHeader = ResponseHeaderWithValue(HttpResponseHeader.Server, config.serverName)
             val buffer = ByteBuffer.allocate(serverHeader.length + dateHeader.length)
             serverHeader.writeHeader(buffer)
             dateHeader.writeHeader(buffer)

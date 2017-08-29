@@ -1,21 +1,18 @@
 package tech.pronghorn.websocket.core
 
+import com.jsoniter.output.JsonStream
 import eventually
-import mu.KotlinLogging
 import org.junit.Test
 import tech.pronghorn.http.*
 import tech.pronghorn.http.protocol.*
 import tech.pronghorn.server.*
 import tech.pronghorn.server.config.HttpServerConfig
-import tech.pronghorn.server.core.HttpRequestHandler
-import tech.pronghorn.stats.StatTracker
+import tech.pronghorn.server.core.DirectHttpRequestHandler
 import tech.pronghorn.test.CDBTest
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 import java.time.Duration
-import java.util.*
-import java.util.concurrent.atomic.AtomicLong
 import kotlin.concurrent.thread
 import kotlin.system.measureTimeMillis
 import kotlin.test.assertEquals
@@ -23,7 +20,25 @@ import kotlin.test.assertTrue
 
 data class JsonExample(val message: String)
 
-class HttpCounterHandler : HttpRequestHandler() {
+class HelloWorldHandler : DirectHttpRequestHandler() {
+    private val helloBytes = "Hello, World!".toByteArray(Charsets.US_ASCII)
+    private val response = HttpResponses.OK(helloBytes, CommonContentTypes.TextPlain)
+
+    suspend override fun handleDirect(exchange: HttpExchange): HttpResponse {
+        return response
+    }
+}
+
+class JsonHandler : DirectHttpRequestHandler() {
+    suspend override fun handleDirect(exchange: HttpExchange): HttpResponse {
+        val example = JsonExample("Hello, World!")
+        val json = JsonStream.serialize(example)
+        val jsonBytes = json.toByteArray(Charsets.UTF_8)
+        return HttpResponses.OK(jsonBytes, CommonContentTypes.ApplicationJson)
+    }
+}
+/*
+class HttpCounterHandlerOLD : HttpRequestHandler() {
     private val logger = KotlinLogging.logger {}
     var server: HttpServer? = null
     val stats = StatTracker()
@@ -31,22 +46,37 @@ class HttpCounterHandler : HttpRequestHandler() {
     val requestsHandled = AtomicLong(0)
     val contentBytes = "Hello World!".toByteArray(Charsets.US_ASCII)
 
-    override suspend fun handleGet(request: HttpRequest): HttpResponse {
-//        requestsHandled.incrementAndGet()
+    val staticHeaders = mutableListOf<HttpResponseHeaderValue<*>>()
+    init {
+        staticHeaders.add(NumericResponseHeaderValue(HttpResponseHeader.ContentLength, contentBytes.size))
+        staticHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.ContentType, CommonContentTypes.ApplicationJson.bytes))
+    }
+    val response = HttpResponse(HttpResponseCode.OK, contentBytes, staticHeaders)
 
-        val tmpHeaders = ArrayList<HttpResponseHeaderValue<*>>()
+    override suspend fun handle(exchange: HttpExchange)*//*: HttpResponse *//*{
+        //exchange.setBody(contentBytes, CommonContentTypes.TextPlain)
+//        exchange.setResponseCode(HttpResponseCode.OK)
+        exchange.sendResponse(response)
+//        exchange.setResponseCode(HttpResponseCode.OK)
+//        exchange.addResponseHeader(HttpResponseHeader.ContentLength, contentBytes.size)
+//        exchange.addResponseHeader(HttpResponseHeader.ContentType, CommonContentTypes.ApplicationJson.bytes)
+//        exchange.addBody(contentBytes)
+//        exchange.sendResponse()
+
+//        exchange.sendResponse(response)
+
+        *//*val tmpHeaders = ArrayList<HttpResponseHeaderValue<*>>()
         tmpHeaders.add(NumericResponseHeaderValue(HttpResponseHeader.ContentLength, contentBytes.size))
-        tmpHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.ContentType, CommonMimeTypes.ApplicationJson.bytes))
-
-        return HttpResponse(HttpResponseCode.OK, tmpHeaders, contentBytes, HttpVersion.HTTP11, request.connection)
+        tmpHeaders.add(ByteArrayResponseHeaderValue(HttpResponseHeader.ContentType, CommonContentTypes.ApplicationJson.bytes))
+        return HttpResponse(HttpResponseCode.OK, contentBytes, HttpVersion.HTTP11, tmpHeaders)*//*
 
 //        val example = JsonExample("Hello, World!")
 //        val json = JsonStream.serialize(example)
 //        val jsonBytes = json.toByteArray(Charsets.UTF_8)
 //
-//        return HttpResponse(HttpResponseCode.OK, staticHeaders, jsonBytes, HttpVersion.HTTP11, serverBytes, request.connection)
+//        return HttpResponse(HttpResponseCode.OK, staticHeaders, jsonBytes, HttpVersion.HTTP11, serverBytes, exchange.connection)
     }
-}
+}*/
 
 data class ParseTest(val uriString: String,
                      val uri: HttpRequestURI) {
@@ -62,21 +92,11 @@ data class ParseTest(val uriString: String,
 
 class HttpServerTests : CDBTest() {
     val host = "10.0.1.2"
-    //    val host = "localhost"
     val port = 2648
     val address = InetSocketAddress(host, port)
 
     @Test
     fun uriParser() {
-//        val foo = "港"
-//        val ch: Char = foo.get(0)
-//        println(ch.toInt())
-//
-//        println(foo)
-//        System.exit(1)
-//
-
-
         val tests = arrayOf(
                 ParseTest(
                         "/",
@@ -201,7 +221,7 @@ class HttpServerTests : CDBTest() {
             val batchSize = 1
             val batchCount = 128 * 128
 
-            val counterHandler = HttpCounterHandler()
+            val counterHandler = HelloWorldHandler()
             val serverConfig = HttpServerConfig(address, serverThreadCount)
 
             val server = HttpServer(serverConfig)
@@ -212,9 +232,12 @@ class HttpServerTests : CDBTest() {
 //                u += 1
 //            }
 
-            server.registerUrlHandler("/plaintext", counterHandler)
+//            server.registerUrlHandler("/plaintext", counterHandler)
+//            server.registerUrlHandler("/plaintext", HttpMethod.GET, counterHandler)
 
-            counterHandler.server = server
+            server.registerUrlHandler("/plaintext", HelloWorldHandler())
+            server.registerUrlHandler("/json", JsonHandler())
+
             server.start()
 
             Thread.sleep(10000000)
@@ -310,9 +333,9 @@ class HttpServerTests : CDBTest() {
                     clientThreads.forEach(Thread::start)
                     clientThreads.forEach(Thread::join)
                     val clientsFinished = System.currentTimeMillis()
-                    eventually(Duration.ofSeconds(5)) {
-                        assertEquals(totalExpected.toLong(), counterHandler.requestsHandled.get())
-                    }
+//                    eventually(Duration.ofSeconds(5)) {
+//                        assertEquals(totalExpected.toLong(), counterHandler.requestsHandled.get())
+//                    }
                     val serverFinished = System.currentTimeMillis()
                     println("Server took ${serverFinished - clientsFinished} ms longer than clients.")
                 }

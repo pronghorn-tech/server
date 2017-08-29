@@ -50,7 +50,7 @@ class WebsocketServerTests : CDBTest() {
 
             while (x < count) {
                 val parsed = HttpRequestParser.parse(buffer, TODO())
-                if (parsed is HttpRequest && parsed.method == HttpMethod.GET) {
+                if (parsed is HttpExchange && parsed.requestMethod == HttpMethod.GET) {
                     x += 1
                 }
                 buffer.position(0)
@@ -77,8 +77,8 @@ class WebsocketServerTests : CDBTest() {
             buffer.put(validRequestBytes, 0, x)
             buffer.flip()
             val parsed = HttpRequestParser.parse(buffer, TODO())
-            if (parsed is HttpRequest) {
-                assertEquals(6, parsed.headers.size)
+            if (parsed is HttpExchange) {
+                assertEquals(6, parsed.requestHeaders.size)
                 validResponses += 1
             }
             x += 1
@@ -88,7 +88,7 @@ class WebsocketServerTests : CDBTest() {
     }
 
     /*
-     * Tests parsing with an invalid request method
+     * Tests parsing with an invalid request requestMethod
      * Purpose: Ensure the proper error type is returned in this case.
      */
     @Test

@@ -1,4 +1,4 @@
-package tech.pronghorn.server.services
+package tech.pronghorn.websocket.services
 
 import mu.KotlinLogging
 import tech.pronghorn.coroutines.core.CoroutineWorker

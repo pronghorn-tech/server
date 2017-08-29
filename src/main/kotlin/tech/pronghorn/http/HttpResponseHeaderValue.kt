@@ -5,17 +5,22 @@ import tech.pronghorn.server.carriageReturnNewLineShort
 import tech.pronghorn.server.colonSpaceShort
 import java.nio.ByteBuffer
 
-sealed class HttpResponseHeaderValue<T>(open val header: HttpResponseHeader,
-                                        open val value: T) {
+sealed class HttpResponseHeaderValue<T>(open val value: T) {
+    companion object {
+        fun valueOf(value: Int): HttpResponseHeaderValue<Int> = NumericResponseHeaderValue(value)
+
+        fun valueOf(value: String): HttpResponseHeaderValue<ByteArray> = ByteArrayResponseHeaderValue(value.toByteArray(Charsets.US_ASCII))
+
+        fun valueOf(value: ByteArray): HttpResponseHeaderValue<ByteArray> = ByteArrayResponseHeaderValue(value)
+    }
+
     abstract val valueLength: Int
 
-    abstract val length: Int
-
-    abstract fun writeHeader(output: ByteBuffer): Int
+    abstract fun writeHeader(headerType: HttpResponseHeader,
+                             output: ByteBuffer)
 }
 
-class NumericResponseHeaderValue(override val header: HttpResponseHeader,
-                                 override val value: Int) : HttpResponseHeaderValue<Int>(header, value) {
+class NumericResponseHeaderValue(override val value: Int) : HttpResponseHeaderValue<Int>(value) {
     override val valueLength = when {
         value < 10 -> 1
         value < 100 -> 2
@@ -29,10 +34,9 @@ class NumericResponseHeaderValue(override val header: HttpResponseHeader,
         else -> 10
     }
 
-    override val length = header.displayBytes.size + valueLength + 4
-
-    override fun writeHeader(output: ByteBuffer): Int {
-        output.put(header.displayBytes)
+    override fun writeHeader(headerType: HttpResponseHeader,
+                             output: ByteBuffer) {
+        output.put(headerType.displayBytes)
         output.putShort(colonSpaceShort)
 
         if (value > 1000000000) output.put((48 + (value.rem(10000000000) / 1000000000)).toByte())
@@ -47,23 +51,33 @@ class NumericResponseHeaderValue(override val header: HttpResponseHeader,
         output.put((48 + value.rem(10)).toByte())
 
         output.putShort(carriageReturnNewLineShort)
-
-        return length
     }
 }
 
-class ByteArrayResponseHeaderValue(override val header: HttpResponseHeader,
-                                   override val value: ByteArray) : HttpResponseHeaderValue<ByteArray>(header, value) {
+class ByteArrayResponseHeaderValue(override val value: ByteArray) : HttpResponseHeaderValue<ByteArray>(value) {
     override val valueLength: Int = value.size
 
-    override val length = header.displayBytes.size + valueLength + 4
-
-    override fun writeHeader(output: ByteBuffer): Int {
-        output.put(header.displayBytes)
+    override fun writeHeader(headerType: HttpResponseHeader,
+                             output: ByteBuffer) {
+        output.put(headerType.displayBytes)
         output.putShort(colonSpaceShort)
         output.put(value)
         output.putShort(carriageReturnNewLineShort)
-
-        return length
     }
+}
+
+data class ResponseHeaderWithValue(val type: HttpResponseHeader,
+                                   val value: HttpResponseHeaderValue<*>) {
+    val length = type.displayBytes.size + value.valueLength + 4 // "header: value\r\n"
+
+    constructor(headerType: HttpResponseHeader,
+                value: ByteArray) : this(headerType, HttpResponseHeaderValue.valueOf(value))
+
+    constructor(headerType: HttpResponseHeader,
+                value: Int) : this(headerType, HttpResponseHeaderValue.valueOf(value))
+
+    constructor(headerType: HttpResponseHeader,
+                value: String) : this(headerType, HttpResponseHeaderValue.valueOf(value))
+
+    fun writeHeader(buffer: ByteBuffer) = value.writeHeader(type, buffer)
 }

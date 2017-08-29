@@ -11,7 +11,7 @@ import io.undertow.util.Headers.CONTENT_TYPE
 import java.nio.ByteBuffer
 import java.util.*
 
-internal class PlaintextHandler : HttpHandler {
+internal class UndertowPlaintextHandler : HttpHandler {
     override fun handleRequest(exchange: HttpServerExchange) {
         exchange.responseHeaders.put(CONTENT_TYPE, "text/plain")
         exchange.responseSender.send(buffer.duplicate())
@@ -35,8 +35,8 @@ fun main(args: Array<String>) {
     val port = 2648
     val host = "10.0.1.2"
     val paths = PathHandler()
-            .addExactPath("/plaintext", PlaintextHandler())
-    val rootHandler = SetHeaderHandler(paths, "Server", "U-tow")
+            .addExactPath("/plaintext", UndertowPlaintextHandler())
+    val rootHandler = SetHeaderHandler(paths, "Server", "Undertow")
     Undertow.builder()
             .setWorkerThreads(80)
             .setIoThreads(8)
