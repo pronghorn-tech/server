@@ -1,7 +1,7 @@
 package tech.pronghorn.websocket.core
 
 import com.jsoniter.output.JsonStream
-import eventually
+import tech.pronghorn.util.eventually
 import org.junit.Test
 import tech.pronghorn.http.*
 import tech.pronghorn.http.protocol.*
@@ -328,7 +328,7 @@ class HttpServerTests : CDBTest() {
                     clientThreads.forEach(Thread::start)
                     clientThreads.forEach(Thread::join)
                     val clientsFinished = System.currentTimeMillis()
-//                    eventually(Duration.ofSeconds(5)) {
+//                    tech.pronghorn.util.eventually(Duration.ofSeconds(5)) {
 //                        assertEquals(totalExpected.toLong(), counterHandler.requestsHandled.get())
 //                    }
                     val serverFinished = System.currentTimeMillis()

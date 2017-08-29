@@ -13,9 +13,7 @@ import tech.pronghorn.server.services.HttpRequestHandlerService
 import tech.pronghorn.server.services.ResponseWriterService
 import tech.pronghorn.util.runAllIgnoringExceptions
 import tech.pronghorn.util.write
-import tech.pronghorn.websocket.core.ParsedHttpRequest
 import java.nio.ByteBuffer
-import java.nio.channels.CancelledKeyException
 import java.nio.channels.ClosedChannelException
 import java.nio.channels.SelectionKey
 import java.nio.channels.SocketChannel

@@ -503,14 +503,14 @@ class WebsocketServerTests : CDBTest() {
             repeat(0) {
                 val server = HttpServerWorker(noopConfig)
                 server.start()
-                eventually { server.isRunning shouldBe true }
+                tech.pronghorn.util.eventually { server.isRunning shouldBe true }
                 try {
                     val clientCount = 1 + Random().nextInt(16)
                     for (c in 1..clientCount) {
                         SocketChannel.open(address)
                     }
 
-                    eventually(5.seconds) { server.getActiveConnectionCount() shouldBe clientCount }
+                    tech.pronghorn.util.eventually(5.seconds) { server.getActiveConnectionCount() shouldBe clientCount }
                 }
                 finally {
                     server.shutdown()
@@ -523,11 +523,11 @@ class WebsocketServerTests : CDBTest() {
                 val server = HttpServerWorker(noopConfig)
                 server.start()
                 try {
-                    eventually { server.isRunning shouldBe true }
+                    tech.pronghorn.util.eventually { server.isRunning shouldBe true }
                     val channel = SocketChannel.open(address)
-                    eventually { server.getPendingConnectionCount() shouldBe 1 }
+                    tech.pronghorn.util.eventually { server.getPendingConnectionCount() shouldBe 1 }
                     sendHandshake(channel)
-                    eventually {
+                    tech.pronghorn.util.eventually {
 
                         server.getPendingConnectionCount() shouldBe 0
                         server.getActiveConnectionCount() shouldBe 1
@@ -557,7 +557,7 @@ class WebsocketServerTests : CDBTest() {
 
                 val channels = mutableListOf<SocketChannel>()
                 try {
-                    eventually { server.isRunning shouldBe true }
+                    tech.pronghorn.util.eventually { server.isRunning shouldBe true }
 
                     println(totalConns)
                     for (c in 1..channelCount) {
@@ -567,9 +567,9 @@ class WebsocketServerTests : CDBTest() {
                         channels.add(channel)
                     }
 
-                    eventually(5.seconds) { server.getPendingConnectionCount() shouldBe channelCount }
+                    tech.pronghorn.util.eventually(5.seconds) { server.getPendingConnectionCount() shouldBe channelCount }
                     channels.forEach { channel -> sendHandshake(channel) }
-                    eventually(5.seconds) { server.getActiveConnectionCount() shouldBe channelCount }
+                    tech.pronghorn.util.eventually(5.seconds) { server.getActiveConnectionCount() shouldBe channelCount }
                     server.getPendingConnectionCount() shouldBe 0
 
                     val maskBytes = ByteArray(4)
@@ -622,7 +622,7 @@ class WebsocketServerTests : CDBTest() {
                     val taken = measureTimeMillis {
                         clientThreads.forEach(Thread::start)
                         clientThreads.forEach(Thread::join)
-                        eventually(5.seconds) { counterHandlers.map { handler -> handler.framesHandled }.sum() shouldBe totalExpected.toLong() }
+                        tech.pronghorn.util.eventually(5.seconds) { counterHandlers.map { handler -> handler.framesHandled }.sum() shouldBe totalExpected.toLong() }
                     }
 
                     fakeWorker.shutdown()
@@ -666,7 +666,7 @@ class WebsocketServerTests : CDBTest() {
 
                 val server = HttpServer(serverConfig)
                 server.start()
-                eventually { server.isRunning shouldBe true }
+                tech.pronghorn.util.eventually { server.isRunning shouldBe true }
 
                 val clientConfig = WebsocketClientConfig(noopFrameHandler, clientThreadCount)
                 val client = WebsocketClient(clientConfig)
@@ -684,7 +684,7 @@ class WebsocketServerTests : CDBTest() {
 //                        else -> fail("Connection future did not return a connection.")
 //                    }
 
-                    eventually {
+                    tech.pronghorn.util.eventually {
                         client.getActiveConnectionCount() shouldBe 1
                         server.getActiveConnectionCount() shouldBe 1
                     }
@@ -723,12 +723,12 @@ class WebsocketServerTests : CDBTest() {
                 val thread = thread { server.start() }
 
                 try {
-                    eventually { server.isRunning shouldBe true }
+                    tech.pronghorn.util.eventually { server.isRunning shouldBe true }
                     val channel = SocketChannel.open(address)
-                    eventually { server.getPendingConnectionCount() shouldBe 1 }
+                    tech.pronghorn.util.eventually { server.getPendingConnectionCount() shouldBe 1 }
 
                     sendHandshake(channel)
-                    eventually { server.getActiveConnectionCount() shouldBe 1 }
+                    tech.pronghorn.util.eventually { server.getActiveConnectionCount() shouldBe 1 }
 
                     val maskBytes = ByteArray(4)
                     Random().nextBytes(maskBytes)
@@ -754,7 +754,7 @@ class WebsocketServerTests : CDBTest() {
                             x = 0
                             y += 1
                         }
-                        eventually { framesHandled shouldBe batchSize * batchCount }
+                        tech.pronghorn.util.eventually { framesHandled shouldBe batchSize * batchCount }
                     }
 
                     println("Took $taken ms for ${batchSize * batchCount} frames. Effective fps : ${(1000f / taken) * (batchSize * batchCount)}")
@@ -777,7 +777,7 @@ class WebsocketClientTests : FlatSpec(), Eventually {
     }
 
     fun runSingleProcess(manager: WebsocketManager<*>): Unit {
-        eventually(Duration(5, TimeUnit.SECONDS)) {
+        tech.pronghorn.util.eventually(Duration(5, TimeUnit.SECONDS)) {
             val handler = manager.processQueue.poll()
 
             if (handler != null) {
@@ -938,7 +938,7 @@ class WebsocketClientTests : FlatSpec(), Eventually {
         }
     }
 
-    it should "eventually fail writes even while flushing due to the kernel buffer being full" in repeat(16) {
+    it should "tech.pronghorn.util.eventually fail writes even while flushing due to the kernel buffer being full" in repeat(16) {
         withServerAndClient(noopFrameHandler, noopFrameHandler) { (server, client) =>
             val futConnection = client.connect(address)
             runSingleProcess(server) // Accept
@@ -1073,7 +1073,7 @@ class WebsocketClientTests : FlatSpec(), Eventually {
                 c += 1
             }
 
-            eventually {
+            tech.pronghorn.util.eventually {
                 runProcess(server)
                 runProcess(client)
                 server.connections.size should equal(connectionCount)
