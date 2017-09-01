@@ -8,7 +8,6 @@ import tech.pronghorn.http.HttpResponse
 import tech.pronghorn.server.HttpServerWorker
 
 class HttpRequestHandlerPerRequestService(override val worker: HttpServerWorker) : InternalQueueService<HttpExchange>() {
-    override val logger = KotlinLogging.logger {}
     private val context = ServiceManagedCoroutineContext(this)
     private val writer by lazy(LazyThreadSafetyMode.NONE) {
         worker.requestInternalWriter<HttpResponse, ResponseWriterPerRequestService>()

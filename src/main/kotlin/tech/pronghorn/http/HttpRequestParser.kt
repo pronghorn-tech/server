@@ -2,7 +2,6 @@ package tech.pronghorn.http
 
 import mu.KotlinLogging
 import tech.pronghorn.http.protocol.*
-import tech.pronghorn.plugins.map.MapPlugin
 import tech.pronghorn.server.*
 import java.nio.ByteBuffer
 import kotlin.experimental.or
@@ -56,7 +55,7 @@ object HttpRequestParser {
             return InvalidVersionParseError
         }
 
-        val headers = MapPlugin.get<HttpRequestHeader, AsciiString>()
+        val headers = mutableMapOf<HttpRequestHeader, AsciiString>()
 
         var headersEnd = -1
 

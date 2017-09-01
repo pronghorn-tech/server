@@ -100,7 +100,6 @@ data class URLHandlerMapping(val url: ByteArray,
 
 class HttpServerWorker(val server: HttpServer,
                        private val config: HttpServerConfig) : HttpWorker() {
-    override val logger = KotlinLogging.logger {}
     private val serverKey = server.registerAcceptWorker(selector)
     private val connectionCreationService = ServerConnectionCreationService(this, selector)
     private val httpRequestHandlerService = HttpRequestHandlerService(this)
@@ -179,7 +178,7 @@ class HttpServerWorker(val server: HttpServer,
         return false
     }
 
-    override fun processKey(key: SelectionKey): Unit {
+    override fun processKey(key: SelectionKey) {
         if (key == serverKey && key.isAcceptable) {
             server.attemptAccept()
         } else if (key.isReadable) {
@@ -200,7 +199,6 @@ class HttpServerWorker(val server: HttpServer,
 }
 
 class DummyWorker : HttpWorker() {
-    override val logger = KotlinLogging.logger {}
     override val services = emptyList<Service>()
     override fun processKey(key: SelectionKey) = TODO()
 }

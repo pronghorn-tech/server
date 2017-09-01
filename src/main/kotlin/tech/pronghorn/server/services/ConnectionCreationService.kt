@@ -11,16 +11,12 @@ import java.util.*
 
 class ServerConnectionCreationService(override val worker: HttpServerWorker,
                                       private val selector: Selector) : SingleWriterExternalQueueService<SocketChannel>() {
-    override val logger = KotlinLogging.logger {}
-//    private val handshaker = WebsocketHandshaker()
-
     suspend override fun process(socket: SocketChannel) {
         socket.configureBlocking(false)
         val selectionKey = socket.register(selector, SelectionKey.OP_READ)
         val connection = HttpServerConnection(worker, socket, selectionKey)
         worker.addConnection(connection)
         selectionKey.attach(connection)
-//        connection.attemptHandshake(handshaker)
     }
 }
 

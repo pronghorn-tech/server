@@ -1,6 +1,5 @@
 package tech.pronghorn.server.services
 
-import mu.KotlinLogging
 import tech.pronghorn.coroutines.service.InternalQueueService
 import tech.pronghorn.http.*
 import tech.pronghorn.server.HttpServerConnection
@@ -8,7 +7,6 @@ import tech.pronghorn.server.HttpWorker
 import java.io.IOException
 
 class ConnectionReadService(override val worker: HttpWorker) : InternalQueueService<HttpServerConnection>() {
-    override val logger = KotlinLogging.logger {}
     private val maxFramesParsed = 64
 
     private val requestWriter by lazy(LazyThreadSafetyMode.NONE) {
