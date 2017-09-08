@@ -1,12 +1,13 @@
 package tech.pronghorn.http
 
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.RepeatedTest
 import tech.pronghorn.http.protocol.HttpMethod
-import tech.pronghorn.test.CDBTest
+import tech.pronghorn.test.PronghornTest
+import tech.pronghorn.test.repeatCount
 import java.nio.ByteBuffer
-import kotlin.test.assertEquals
 
-class WebsocketServerTests : CDBTest() {
+class WebsocketServerTests : PronghornTest() {
     val validRequestLines1 = arrayOf(
             "GET /plaintext HTTP/1.1",
             "Host: server",
@@ -40,34 +41,32 @@ class WebsocketServerTests : CDBTest() {
         return buffer
     }
 
-    @Test
+    @RepeatedTest(repeatCount)
     fun benchmarkParse() {
-        repeat(16) {
-            val buffer = writeRequestLinesToBuffer(validRequestLines)
-            var x = 0
-            val count = 1000000
-            val pre = System.currentTimeMillis()
+        val buffer = writeRequestLinesToBuffer(validRequestLines)
+        var x = 0
+        val count = 1000000
+        val pre = System.currentTimeMillis()
 
-            while (x < count) {
-                val parsed = HttpRequestParser.parse(buffer, TODO())
-                if (parsed is HttpExchange && parsed.requestMethod == HttpMethod.GET) {
-                    x += 1
-                }
-                buffer.position(0)
+        while (x < count) {
+            val parsed = parseHttpRequest(buffer, TODO())
+            if (parsed is HttpExchange && parsed.requestMethod == HttpMethod.GET) {
+                x += 1
             }
-
-            val post = System.currentTimeMillis()
-            val took = post - pre
-            val perSecond = Math.round(count / (took / 1000.0))
-            println("Took $took ms, $perSecond per second")
+            buffer.position(0)
         }
+
+        val post = System.currentTimeMillis()
+        val took = post - pre
+        val perSecond = Math.round(count / (took / 1000.0))
+        println("Took $took ms, $perSecond per second")
     }
 
     /*
      * Tests parsing a full request in all potential partial pieces.
      * Purpose: Ensure parsing doesn't throw exceptions when parsing incomplete messages.
      */
-    @Test
+    @RepeatedTest(repeatCount)
     fun progressiveParsing() {
         var x = 0
         var validResponses = 0
@@ -76,7 +75,7 @@ class WebsocketServerTests : CDBTest() {
             val buffer = ByteBuffer.allocate(x)
             buffer.put(validRequestBytes, 0, x)
             buffer.flip()
-            val parsed = HttpRequestParser.parse(buffer, TODO())
+            val parsed = parseHttpRequest(buffer, TODO())
             if (parsed is HttpExchange) {
                 assertEquals(6, parsed.requestHeaders.size)
                 validResponses += 1
@@ -91,12 +90,12 @@ class WebsocketServerTests : CDBTest() {
      * Tests parsing with an invalid request requestMethod
      * Purpose: Ensure the proper error type is returned in this case.
      */
-    @Test
+    @RepeatedTest(repeatCount)
     fun parseInvalidMethodError() {
         val invalidMethodLines = validRequestLines.copyOf()
         invalidMethodLines[0] = invalidMethodLines[0].replace("GET", "WRONG")
         val buffer = writeRequestLinesToBuffer(invalidMethodLines)
-        val parsed = HttpRequestParser.parse(buffer, TODO())
+        val parsed = parseHttpRequest(buffer, TODO())
 
         assertEquals(InvalidMethodParseError, parsed)
     }
@@ -105,12 +104,12 @@ class WebsocketServerTests : CDBTest() {
      * Tests parsing with an invalid http version
      * Purpose: Ensure the proper error type is returned in this case.
      */
-    @Test
+    @RepeatedTest(repeatCount)
     fun parseInvalidVersionError() {
         val invalidMethodLines = validRequestLines.copyOf()
         invalidMethodLines[0] = invalidMethodLines[0].replace("HTTP/1.1", "HTTP/3")
         val buffer = writeRequestLinesToBuffer(invalidMethodLines)
-        val parsed = HttpRequestParser.parse(buffer, TODO())
+        val parsed = parseHttpRequest(buffer, TODO())
 
         assertEquals(InvalidVersionParseError, parsed)
     }

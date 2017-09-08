@@ -1,4 +1,4 @@
-package tech.pronghorn.http
+package tech.pronghorn.http.protocol
 
 import java.nio.ByteBuffer
 import java.util.*
@@ -24,6 +24,8 @@ data class AsciiString(val bytes: ByteArray) {
     constructor(bytes: ByteArray,
                 start: Int,
                 length: Int) : this(Arrays.copyOfRange(bytes, start, start + length))
+
+    constructor(string: String) : this(string.toByteArray(Charsets.US_ASCII))
 
     override fun toString(): String = String(bytes, Charsets.US_ASCII)
 

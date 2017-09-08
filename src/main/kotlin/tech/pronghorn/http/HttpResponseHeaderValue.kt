@@ -1,8 +1,8 @@
 package tech.pronghorn.http
 
 import tech.pronghorn.http.protocol.HttpResponseHeader
-import tech.pronghorn.server.carriageReturnNewLineShort
-import tech.pronghorn.server.colonSpaceShort
+import tech.pronghorn.http.protocol.carriageReturnNewLineShort
+import tech.pronghorn.http.protocol.colonSpaceShort
 import java.nio.ByteBuffer
 
 sealed class HttpResponseHeaderValue<T>(open val value: T) {
@@ -66,8 +66,8 @@ class ByteArrayResponseHeaderValue(override val value: ByteArray) : HttpResponse
     }
 }
 
-data class ResponseHeaderWithValue(val type: HttpResponseHeader,
-                                   val value: HttpResponseHeaderValue<*>) {
+data class HttpResponseHeaderValuePair(val type: HttpResponseHeader,
+                                       val value: HttpResponseHeaderValue<*>) {
     val length = type.displayBytes.size + value.valueLength + 4 // "header: value\r\n"
 
     constructor(headerType: HttpResponseHeader,

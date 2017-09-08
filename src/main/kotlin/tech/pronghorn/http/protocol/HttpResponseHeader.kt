@@ -1,9 +1,22 @@
 package tech.pronghorn.http.protocol
 
-enum class HttpResponseHeader(val displayName: String,
-                              val parseName: String = displayName.toLowerCase(),
-                              val displayBytes: ByteArray = displayName.toByteArray(Charsets.US_ASCII),
-                              val parseBytes: ByteArray = parseName.toByteArray(Charsets.US_ASCII)) {
+import tech.pronghorn.util.finder.ByteBacked
+
+interface HttpResponseHeader : ByteBacked {
+    fun getHeaderName(): String
+
+    val displayBytes: ByteArray
+}
+
+class InstanceHttpResponseHeader(val displayName: String) : HttpResponseHeader {
+    val parseName = displayName.toLowerCase()
+    override val displayBytes: ByteArray = displayName.toByteArray(Charsets.US_ASCII)
+    override val bytes: ByteArray = parseName.toByteArray(Charsets.US_ASCII)
+
+    override fun getHeaderName(): String = displayName
+}
+
+enum class StandardHttpResponseHeaders(val displayName: String): HttpResponseHeader {
     AccessControlAllowOrigin("Access-Control-Allow-Origin"),
     AcceptPatch("Accept-Patch"),
     AcceptRanges("Accept-Ranges"),
@@ -43,5 +56,11 @@ enum class HttpResponseHeader(val displayName: String,
     Via("Via"),
     Warning("Warning"),
     WWWAuthenticate("WWW-Authenticate"),
-    XFrameOptions("X-Frame-Options")
+    XFrameOptions("X-Frame-Options");
+
+    val parseName: String = displayName.toLowerCase()
+    override val displayBytes: ByteArray = displayName.toByteArray(Charsets.US_ASCII)
+    override val bytes: ByteArray = parseName.toByteArray(Charsets.US_ASCII)
+
+    override fun getHeaderName(): String = displayName
 }

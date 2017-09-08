@@ -1,70 +1,49 @@
 package tech.pronghorn.server
 
-import tech.pronghorn.coroutines.awaitable.QueueWriter
+import mu.KotlinLogging
 import tech.pronghorn.coroutines.core.CoroutineWorker
-import tech.pronghorn.coroutines.core.InterWorkerMessage
-import tech.pronghorn.http.protocol.HttpMethod
-import tech.pronghorn.plugins.concurrentMap.ConcurrentMapPlugin
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.config.HttpServerConfig
-import tech.pronghorn.server.core.HttpRequestHandler
-import tech.pronghorn.server.services.ServerConnectionCreationService
-import java.io.IOException
-import java.nio.channels.SelectionKey
+import tech.pronghorn.server.handlers.HttpRequestHandler
+import tech.pronghorn.server.services.MultiSocketManagerService
+import tech.pronghorn.server.services.SingleSocketManagerService
+import tech.pronghorn.server.services.SocketManagerService
+import java.net.InetSocketAddress
 import java.nio.channels.Selector
 import java.nio.channels.ServerSocketChannel
-import java.nio.channels.SocketChannel
 import java.util.concurrent.locks.ReentrantLock
 
-data class RegisterURLHandlerMessage(val url: String,
-                                     val handlerGenerator: () -> HttpRequestHandler) : InterWorkerMessage
-
-interface ConnectionDistributionStrategy {
-    val workers: Set<HttpServerWorker>
-    fun getWorker(): HttpServerWorker
-}
-
-class RoundRobinConnectionDistributionStrategy(override val workers: Set<HttpServerWorker>): ConnectionDistributionStrategy {
-    private var lastWorkerID = 0
-    val workerCount = workers.size
-
-    override fun getWorker(): HttpServerWorker {
-        return workers.elementAt(lastWorkerID++ % workerCount)
-    }
-}
-
 class HttpServer(val config: HttpServerConfig) {
-    private val logger = mu.KotlinLogging.logger {}
-    private val serverSocket: ServerSocketChannel = ServerSocketChannel.open()
+    private val logger = KotlinLogging.logger {}
     private val workers = ConcurrentSetPlugin.get<HttpServerWorker>()
-    private val workerSocketWriters = ConcurrentMapPlugin.get<HttpServerWorker, QueueWriter<SocketChannel>>()
+    private val serverSocket by lazy {
+        val socket = ServerSocketChannel.open()
+        socket.configureBlocking(false)
+        socket
+    }
+    private val acceptLock by lazy { ReentrantLock() }
+    private val distributionStrategy by lazy { RoundRobinConnectionDistributionStrategy(workers) }
 
-    private val acceptLock = ReentrantLock()
     var isRunning = false
         private set
 
     init {
-        serverSocket.configureBlocking(false)
-
         for (x in 1..config.workerCount) {
             val worker = HttpServerWorker(this, config)
-            workerSocketWriters.put(worker, worker.requestSingleExternalWriter<SocketChannel, ServerConnectionCreationService>())
             workers.add(worker)
         }
     }
 
-    private val distributionStrategy = RoundRobinConnectionDistributionStrategy(workers)
+    constructor(address: InetSocketAddress): this(HttpServerConfig(address))
 
     fun start() {
-        logger.debug { "Starting server on ${config.address} with ${config.workerCount} workers" }
+        logger.info { "Starting server with configuration: $config" }
         isRunning = true
-        serverSocket.socket().bind(config.address, 128)
-
         workers.forEach(CoroutineWorker::start)
     }
 
     fun shutdown() {
-        logger.info("Server on ${config.address} shutting down")
+        logger.info { "Server at ${config.address} shutting down" }
         isRunning = false
         try {
             workers.forEach(HttpServerWorker::shutdown)
@@ -72,21 +51,20 @@ class HttpServer(val config: HttpServerConfig) {
         catch (ex: Exception) {
             ex.printStackTrace()
         }
-        finally {
-            logger.info("Closing server socket.")
-            serverSocket.close()
+    }
+
+    fun getSocketManagerService(worker: HttpServerWorker,
+                                selector: Selector): SocketManagerService {
+        if(config.reusePort){
+            return MultiSocketManagerService(worker, selector)
+        }
+        else {
+            return SingleSocketManagerService(worker, selector, serverSocket, acceptLock, distributionStrategy)
         }
     }
 
     fun getConnectionCount(): Int = workers.map(HttpServerWorker::getConnectionCount).sum()
 
-    fun registerAcceptWorker(selector: Selector): SelectionKey {
-        return serverSocket.register(selector, SelectionKey.OP_ACCEPT)
-    }
-
-    private fun getBestWorker(): HttpServerWorker {
-        return distributionStrategy.getWorker()
-    }
 
     fun registerUrlHandlerGenerator(url: String,
                                     handlerGenerator: () -> HttpRequestHandler) {
@@ -99,52 +77,4 @@ class HttpServer(val config: HttpServerConfig) {
                            handler: HttpRequestHandler) {
         registerUrlHandlerGenerator(url, { handler })
     }
-
-    fun registerUrlHandler(url: String,
-                           method: HttpMethod,
-                           handler: HttpRequestHandler) {
-        TODO()
-    }
-
-    private val acceptGrouping = 128
-
-    internal fun attemptAccept() {
-        if (acceptLock.tryLock()) {
-            try {
-                logger.debug { "Accepting connections..." }
-                var acceptedSocket: SocketChannel? = serverSocket.accept()
-                var accepted = 0
-                while (acceptedSocket != null) {
-                    accepted += 1
-                    acceptedSocket.configureBlocking(false)
-                    acceptedSocket.socket().tcpNoDelay = true
-                    var handled = false
-                    while (!handled) {
-                        val worker = getBestWorker()
-                        val workerWriter = workerSocketWriters.getValue(worker)
-                        handled = workerWriter.offer(acceptedSocket)
-                    }
-                    if (accepted > acceptGrouping) {
-                        break
-                    }
-                    acceptedSocket = serverSocket.accept()
-                }
-                logger.debug { "Accepted $accepted connections." }
-            }
-            catch (ex: IOException) {
-                // no-op
-            }
-            finally {
-                acceptLock.unlock()
-            }
-        }
-    }
-
-//    override fun finalize() {
-//        super.finalize()
-//        if(serverSocket.isOpen){
-//            println("FAILED TO CLOSE SOCKET HttpServer")
-//            System.exit(1)
-//        }
-//    }
 }

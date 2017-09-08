@@ -1,15 +1,14 @@
 package tech.pronghorn.server
 
-import mu.KotlinLogging
 import tech.pronghorn.coroutines.core.CoroutineWorker
-import tech.pronghorn.coroutines.core.InterWorkerMessage
 import tech.pronghorn.coroutines.service.Service
-import tech.pronghorn.http.ResponseHeaderWithValue
-import tech.pronghorn.http.protocol.HttpResponseHeader
+import tech.pronghorn.http.HttpResponseHeaderValuePair
+import tech.pronghorn.http.protocol.StandardHttpResponseHeaders
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
-import tech.pronghorn.server.bufferpools.ConnectionBufferPool
+import tech.pronghorn.server.bufferpools.OneUseByteBufferAllocator
+import tech.pronghorn.server.bufferpools.ReusableBufferPoolManager
 import tech.pronghorn.server.config.HttpServerConfig
-import tech.pronghorn.server.core.HttpRequestHandler
+import tech.pronghorn.server.handlers.HttpRequestHandler
 import tech.pronghorn.server.services.*
 import tech.pronghorn.util.finder.ByteBacked
 import tech.pronghorn.util.finder.ByteBackedFinder
@@ -22,10 +21,39 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.*
 
-sealed class HttpWorker : CoroutineWorker() {
-    protected val connections = ConcurrentSetPlugin.get<HttpServerConnection>()
+data class URLHandlerMapping(val url: ByteArray,
+                             val handler: HttpRequestHandler) : ByteBacked {
+    override val bytes = url
+}
 
-    val connectionBufferPool = ConnectionBufferPool(true)
+class HttpServerWorker(val server: HttpServer,
+                       private val config: HttpServerConfig) : CoroutineWorker() {
+    private val connections = ConcurrentSetPlugin.get<HttpServerConnection>()
+    private val connectionReadService = ConnectionReadService(this)
+    private val connectionCreationService = ServerConnectionCreationService(this, selector)
+    private val socketManagerService = server.getSocketManagerService(this, selector)
+    private val httpRequestHandlerService = HttpRequestHandlerService(this)
+    private val responseWriterService = ResponseWriterService(this)
+    private val handlers = HashMap<Int, URLHandlerMapping>()
+    private val gmt = ZoneId.of("GMT")
+    private val commonHeaderCache = calculateCommonHeaderCache()
+    private var latestDate = System.currentTimeMillis() / 1000
+    private var handlerFinder: ByteBackedFinder<URLHandlerMapping> = FinderGenerator.generateFinder(handlers.values.toTypedArray())
+    val commonHeaderSize = commonHeaderCache.size
+
+    val connectionBufferPool = ReusableBufferPoolManager(config.reusableBufferSize, config.useDirectByteBuffers)
+    val oneUseByteBufferAllocator = OneUseByteBufferAllocator(config.useDirectByteBuffers)
+
+    override val services: List<Service> = listOf(
+            connectionReadService,
+            connectionCreationService,
+            socketManagerService,
+            httpRequestHandlerService,
+            responseWriterService
+    )
+
+    private val connectionReadServiceQueueWriter by lazy(LazyThreadSafetyMode.NONE) { connectionReadService.getQueueWriter() }
+    private val responseWriterServiceQueueWriter by lazy(LazyThreadSafetyMode.NONE) { responseWriterService.getQueueWriter() }
 
     fun getConnectionCount(): Int = connections.size
 
@@ -40,90 +68,24 @@ sealed class HttpWorker : CoroutineWorker() {
     }
 
     override fun onShutdown() {
-        logger.info("Worker shutting down ${connections.size} connections")
-        runAllIgnoringExceptions({ connections.forEach({ it.close("Server is shutting down.") }) })
+        logger.info { "Worker shutting down ${connections.size} connections" }
+        runAllIgnoringExceptions({
+            connections.forEach { it.close("Server is shutting down.") }
+        })
     }
-
-    protected val connectionReadService = ConnectionReadService(this)
-
-    protected val connectionReadServiceQueueWriter by lazy(LazyThreadSafetyMode.NONE) {
-        connectionReadService.getQueueWriter()
-    }
-
-    protected val commonServices = listOf(
-            connectionReadService
-    )
-}
-
-/*
-class HttpClientWorker(config: WebsocketClientConfig) : HttpWorker() {
-    override val logger = KotlinLogging.logger {}
-    private val connectionCreationService = ClientConnectionCreationService(this, selector, config.randomGeneratorBuilder())
-    private val connectionFinisherService = WebsocketConnectionFinisherService(this, selector, config.randomGeneratorBuilder())
-    private val connectionFinisherWriter by lazy(LazyThreadSafetyMode.NONE) {
-        connectionFinisherService.getQueueWriter()
-    }
-
-    override val services: List<Service> = listOf(
-            connectionCreationService,
-            connectionFinisherService
-    ).plus(commonServices)
-
-
-    override fun processKey(key: SelectionKey): Unit {
-        val attachment = key.attachment()
-        when {
-            key.isReadable && attachment is HttpClientConnection -> {
-                if (!connectionReadServiceQueueWriter.offer(attachment)) {
-                    // TODO: handle this properly
-                    throw Exception("ConnectionReadService full!")
-                }
-                attachment.removeInterestOps(SelectionKey.OP_READ)
-            }
-            key.isConnectable && attachment is HttpClientConnection -> {
-                if (!connectionFinisherWriter.offer(attachment)) {
-                    // TODO: handle this properly
-                    throw Exception("HandshakeService full!")
-                }
-                key.interestOps(0)
-            }
-            else -> throw Exception("Unexpected selection op.")
-        }
-    }
-}
-*/
-
-data class URLHandlerMapping(val url: ByteArray,
-                             val handler: HttpRequestHandler): ByteBacked {
-    override val bytes = url
-}
-
-class HttpServerWorker(val server: HttpServer,
-                       private val config: HttpServerConfig) : HttpWorker() {
-    private val serverKey = server.registerAcceptWorker(selector)
-    private val connectionCreationService = ServerConnectionCreationService(this, selector)
-    private val httpRequestHandlerService = HttpRequestHandlerService(this)
-    private val responseService = ResponseWriterPerRequestService(this)
-    private val handlerService = HttpRequestHandlerPerRequestService(this)
-    private val responseWriterService = ResponseWriterService(this)
-    private val handlers = HashMap<Int, URLHandlerMapping>()
-    private val gmt = ZoneId.of("GMT")
-    private val commonHeaderCache = calculateCommonHeaderCache()
-    private var latestDate = System.currentTimeMillis() / 1000
-    val commonHeaderSize = commonHeaderCache.size
 
     private fun calculateCommonHeaderCache(): ByteArray {
         val dateBytes = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(gmt)).toByteArray(Charsets.US_ASCII)
-        val dateHeader = ResponseHeaderWithValue(HttpResponseHeader.Date, dateBytes)
-        val serverHeader = ResponseHeaderWithValue(HttpResponseHeader.Server, config.serverName)
+        val dateHeader = HttpResponseHeaderValuePair(StandardHttpResponseHeaders.Date, dateBytes)
+        val serverHeader = HttpResponseHeaderValuePair(StandardHttpResponseHeaders.Server, config.serverName)
 
-        val bufferSize = (if(config.sendDateHeader) dateHeader.length else 0) + (if(config.sendServerHeader) serverHeader.length else 0)
+        val bufferSize = (if (config.sendDateHeader) dateHeader.length else 0) + (if (config.sendServerHeader) serverHeader.length else 0)
         val buffer = ByteBuffer.allocate(bufferSize)
 
-        if(config.sendServerHeader){
+        if (config.sendServerHeader) {
             serverHeader.writeHeader(buffer)
         }
-        if(config.sendDateHeader){
+        if (config.sendDateHeader) {
             dateHeader.writeHeader(buffer)
         }
 
@@ -131,7 +93,7 @@ class HttpServerWorker(val server: HttpServer,
     }
 
     fun getCommonHeaders(): ByteArray {
-        if(config.sendDateHeader){
+        if (config.sendDateHeader) {
             val now = System.currentTimeMillis() / 1000
             if (latestDate != now) {
                 latestDate = now
@@ -148,20 +110,10 @@ class HttpServerWorker(val server: HttpServer,
         return commonHeaderCache
     }
 
-    override val services: List<Service> = listOf(
-            connectionCreationService,
-            httpRequestHandlerService,
-            responseWriterService,
-            handlerService,
-            responseService
-    ).plus(commonServices)
-
-    private var handlerFinder: ByteBackedFinder<URLHandlerMapping> = FinderGenerator.generateFinder(handlers.values.toTypedArray())
-
     fun getHandler(urlBytes: ByteArray): HttpRequestHandler? = handlerFinder.find(urlBytes)?.handler
 
-    fun addURLHandler(url: String,
-                      handlerGenerator: () -> HttpRequestHandler){
+    private fun addURLHandler(url: String,
+                      handlerGenerator: () -> HttpRequestHandler) {
         val urlBytes = url.toByteArray(Charsets.US_ASCII)
         val handler = handlerGenerator()
 
@@ -169,8 +121,8 @@ class HttpServerWorker(val server: HttpServer,
         handlerFinder = FinderGenerator.generateFinder(handlers.values.toTypedArray())
     }
 
-    override fun handleMessage(message: InterWorkerMessage): Boolean {
-        if(message is RegisterURLHandlerMessage){
+    override fun handleMessage(message: Any): Boolean {
+        if (message is RegisterURLHandlerMessage) {
             addURLHandler(message.url, message.handlerGenerator)
             return true
         }
@@ -179,26 +131,35 @@ class HttpServerWorker(val server: HttpServer,
     }
 
     override fun processKey(key: SelectionKey) {
-        if (key == serverKey && key.isAcceptable) {
-            server.attemptAccept()
-        } else if (key.isReadable) {
+        if (key == socketManagerService.acceptSelectionKey && key.isAcceptable) {
+            socketManagerService.wake()
+        }
+        else if (key.isReadable) {
             val attachment = key.attachment()
             if (attachment is HttpServerConnection) {
                 if (!attachment.isReadQueued) {
                     if (!connectionReadServiceQueueWriter.offer(attachment)) {
-                        // TODO: handle this properly
-                        throw Exception("ConnectionReadService full!")
+                        logger.warn { "Connection read service is overloaded!" }
+                        return
                     }
                     attachment.isReadQueued = true
                 }
             }
-        } else {
+        }
+        else if (key.isWritable) {
+            val attachment = key.attachment()
+            if (attachment is HttpServerConnection) {
+                if (!attachment.isWriteQueued) {
+                    if (!responseWriterServiceQueueWriter.offer(attachment)) {
+                        logger.warn { "Connection write service is overloaded!" }
+                        return
+                    }
+                    attachment.isWriteQueued = true
+                }
+            }
+        }
+        else {
             throw Exception("Unexpected readyOps for attachment : ${key.readyOps()} ${key.attachment()}")
         }
     }
-}
-
-class DummyWorker : HttpWorker() {
-    override val services = emptyList<Service>()
-    override fun processKey(key: SelectionKey) = TODO()
 }

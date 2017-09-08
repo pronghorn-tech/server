@@ -7,19 +7,23 @@ sealed class HttpParseResult
 
 object IncompleteRequestParseError : HttpParseResult()
 
+object InvalidUrlParseError : HttpParseResult()
+
 object InvalidMethodParseError : HttpParseResult()
 
 object InvalidVersionParseError : HttpParseResult()
 
+object InsecureCredentialsParseError : HttpParseResult()
+
 class HttpExchange(val requestMethod: HttpMethod,
-                   val requestUrl: HttpRequestURI,
+                   val requestUrl: HttpUrl,
                    val version: HttpVersion,
                    val requestHeaders: Map<HttpRequestHeader, AsciiString>,
                    val connection: HttpServerConnection,
                    val requestBody: ByteArray?) : HttpParseResult() {
 
     suspend fun sendResponse(response: HttpResponse) {
-        connection.appendResponse(response)
+        connection.enqueueResponse(response)
     }
 }
 

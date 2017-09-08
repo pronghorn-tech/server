@@ -7,8 +7,8 @@ import tech.pronghorn.http.HttpResponses
 import tech.pronghorn.http.protocol.CommonContentTypes
 import tech.pronghorn.server.HttpServer
 import tech.pronghorn.server.config.HttpServerConfig
-import tech.pronghorn.server.core.DirectHttpRequestHandler
-import tech.pronghorn.server.core.StaticHttpRequestHandler
+import tech.pronghorn.server.handlers.DirectHttpRequestHandler
+import tech.pronghorn.server.handlers.StaticHttpRequestHandler
 import java.lang.management.ManagementFactory
 import java.net.InetSocketAddress
 
@@ -36,6 +36,5 @@ fun main(args: Array<String>) {
     server.registerUrlHandler("/plaintext", helloWorldHandler)
     server.registerUrlHandler("/json", jsonHandler)
     server.start()
-    logger.info("Process PID: ${ManagementFactory.getRuntimeMXBean().getName()}")
     Thread.sleep(3600 * 1000)
 }

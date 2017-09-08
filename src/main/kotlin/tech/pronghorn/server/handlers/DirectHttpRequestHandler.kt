@@ -1,11 +1,7 @@
-package tech.pronghorn.server.core
+package tech.pronghorn.server.handlers
 
 import tech.pronghorn.http.HttpExchange
 import tech.pronghorn.http.HttpResponse
-
-abstract class HttpRequestHandler {
-    internal abstract suspend fun handle(exchange: HttpExchange)
-}
 
 abstract class DirectHttpRequestHandler : HttpRequestHandler() {
     override suspend fun handle(exchange: HttpExchange) {
@@ -14,10 +10,4 @@ abstract class DirectHttpRequestHandler : HttpRequestHandler() {
     }
 
     internal abstract suspend fun handleDirect(exchange: HttpExchange): HttpResponse
-}
-
-class StaticHttpRequestHandler(val response: HttpResponse): HttpRequestHandler() {
-    override suspend fun handle(exchange: HttpExchange) {
-        exchange.sendResponse(response)
-    }
 }

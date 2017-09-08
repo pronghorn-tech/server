@@ -6,9 +6,17 @@ interface ContentType: ByteBacked {
     fun getTypeName(): String
 }
 
-enum class CommonContentTypes(val _typeName: String,
-                              val extensions: Array<String>,
-                              override val bytes: ByteArray = _typeName.toByteArray(Charsets.US_ASCII)): ContentType {
+class InstanceContentType(private val value: AsciiString) : ContentType {
+    constructor(name: String) : this(AsciiString(name))
+
+    override val bytes = ByteArray(0)
+
+    override fun getTypeName(): String = value.toString()
+}
+
+
+enum class CommonContentTypes(private val displayName: String,
+                              val extensions: Array<String>): ContentType {
     AudioAac("audio/aac", arrayOf(".aac")),
     AudioOgg("audio/ogg", arrayOf(".oga")),
     AudioWav("audio/x-wav", arrayOf(".wav")),
@@ -45,5 +53,7 @@ enum class CommonContentTypes(val _typeName: String,
     VideoOgg("video/ogg", arrayOf(".ogv")),
     VideoWebm("video/webm", arrayOf(".webm"));
 
-    override fun getTypeName(): String = _typeName
+    override val bytes: ByteArray = displayName.toByteArray(Charsets.US_ASCII)
+
+    override fun getTypeName(): String = displayName
 }

@@ -1,8 +1,9 @@
 package tech.pronghorn.http.protocol
 
+import tech.pronghorn.util.finder.ByteBacked
+
 enum class HttpResponseCode(val code: Int,
-                            val codeName: String,
-                            val bytes: ByteArray = "$code $codeName".toByteArray(Charsets.US_ASCII)) {
+                            val codeName: String): ByteBacked {
     Continue(100, "Continue"),
     SwitchingProtocols(101, "Switching Protocols"),
     Processing(102, "Processing"),
@@ -63,5 +64,7 @@ enum class HttpResponseCode(val code: Int,
     InsufficientStorage(507, "Insufficient Storage"),
     LoopDetected(508, "Loop Detected"),
     NotExtended(510, "Not Extended"),
-    NetworkAuthenticationRequired(511, "Network Authentication Required"),
+    NetworkAuthenticationRequired(511, "Network Authentication Required");
+
+    override val bytes: ByteArray = "$code $codeName".toByteArray(Charsets.US_ASCII)
 }

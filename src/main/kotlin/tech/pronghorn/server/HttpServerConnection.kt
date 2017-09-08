@@ -1,58 +1,40 @@
 package tech.pronghorn.server
 
 import mu.KotlinLogging
-import tech.pronghorn.coroutines.awaitable.InternalQueue
-import tech.pronghorn.http.HttpExchange
-import tech.pronghorn.http.HttpResponse
-import tech.pronghorn.http.HttpResponses
-import tech.pronghorn.http.protocol.HttpVersion
-import tech.pronghorn.plugins.spscQueue.SpscQueuePlugin
-import tech.pronghorn.server.bufferpools.PooledByteBuffer
-import tech.pronghorn.server.core.StaticHttpRequestHandler
+import tech.pronghorn.http.*
+import tech.pronghorn.plugins.internalQueue.InternalQueuePlugin
+import tech.pronghorn.server.bufferpools.ManagedByteBuffer
+import tech.pronghorn.server.handlers.StaticHttpRequestHandler
 import tech.pronghorn.server.services.HttpRequestHandlerService
 import tech.pronghorn.server.services.ResponseWriterService
 import tech.pronghorn.util.runAllIgnoringExceptions
 import tech.pronghorn.util.write
+import java.io.IOException
 import java.nio.ByteBuffer
-import java.nio.channels.ClosedChannelException
+import java.nio.channels.CancelledKeyException
 import java.nio.channels.SelectionKey
 import java.nio.channels.SocketChannel
-import java.util.*
-
-const val spaceByte: Byte = 0x20
-const val carriageReturnByte: Byte = 0xD
-const val newLineByte: Byte = 0xA
-const val carriageReturnNewLineShort: Short = 3338
-const val colonSpaceShort: Short = 14880
-const val colonByte: Byte = 0x3A
-const val tabByte: Byte = 0x9
-const val forwardSlashByte: Byte = 0x2F
-const val asteriskByte: Byte = 0x2A
-const val percentByte: Byte = 0x25
-const val questionByte: Byte = 0x3F
-const val atByte: Byte = 0x40
 
 private val genericNotFoundHandler = StaticHttpRequestHandler(HttpResponses.NotFound())
 
 open class HttpServerConnection(val worker: HttpServerWorker,
                                 val socket: SocketChannel,
                                 val selectionKey: SelectionKey) {
-    companion object {
-        private const val responseQueueSize = 64
-    }
-
     private var isClosed = false
     private val logger = KotlinLogging.logger {}
+    private val maxPipelinedRequests = worker.server.config.maxPipelinedRequests
+    private val reusableBufferSize = worker.server.config.reusableBufferSize
+    private val maxRequestSize = worker.server.config.maxRequestSize
+
+    private val responsesQueue = InternalQueuePlugin.get<HttpResponse>(maxPipelinedRequests)
+    private val requestsQueue = InternalQueuePlugin.get<HttpExchange>(maxPipelinedRequests)
+
     var isReadQueued = false
+    var isWriteQueued = false
+    var hasPendingWrites = false
 
-    private var handshakeBuffer: PooledByteBuffer? = null
-    private var readBuffer: PooledByteBuffer? = null
-    private var writeBuffer: PooledByteBuffer? = null
-
-    private val readyResponseQueue = SpscQueuePlugin.get<HttpResponse>(responseQueueSize)
-    private val readyResponses = InternalQueue(readyResponseQueue)
-    private val readyResponseWriter = readyResponses.queueWriter
-    private val readyResponseReader = readyResponses.queueReader
+    private var readBuffer: ManagedByteBuffer? = null
+    private var writeBuffer: ManagedByteBuffer? = null
 
     private val connectionWriter by lazy(LazyThreadSafetyMode.NONE) {
         worker.requestInternalWriter<HttpServerConnection, ResponseWriterService>()
@@ -62,43 +44,33 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         worker.requestInternalWriter<HttpServerConnection, HttpRequestHandlerService>()
     }
 
-
     init {
         selectionKey.attach(this)
         selectionKey.interestOps(SelectionKey.OP_READ)
     }
 
-    fun releaseReadBuffer() {
+    private fun releaseReadBuffer() {
         readBuffer?.release()
         readBuffer = null
     }
 
-    fun releaseWriteBuffer() {
+    private fun releaseWriteBuffer() {
         writeBuffer?.release()
         writeBuffer = null
+        if (hasPendingWrites) {
+            hasPendingWrites = false
+            removeInterestOps(SelectionKey.OP_WRITE)
+        }
     }
 
-    fun releaseHandshakeBuffer() {
-        handshakeBuffer?.release()
-        handshakeBuffer = null
-    }
-
-    fun getReadBuffer(): ByteBuffer {
+    private fun getReadBuffer(): ByteBuffer {
         if (readBuffer == null) {
             readBuffer = worker.connectionBufferPool.getBuffer()
         }
         return readBuffer!!.buffer
     }
 
-    fun getWriteBuffer(): ByteBuffer {
-        if (writeBuffer == null) {
-            writeBuffer = worker.connectionBufferPool.getBuffer()
-        }
-        return writeBuffer!!.buffer
-    }
-
     private fun releaseBuffers() {
-        releaseHandshakeBuffer()
         releaseReadBuffer()
         releaseWriteBuffer()
     }
@@ -116,219 +88,212 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         releaseBuffers()
     }
 
-    suspend fun appendResponse(response: HttpResponse) {
-        val empty = readyResponseReader.isEmpty()
-        // TODO: is this better than just the addAsync?
-        if (!readyResponseWriter.offer(response)) {
-            readyResponseWriter.addAsync(response)
+    suspend fun enqueueResponse(response: HttpResponse) {
+        if (!responsesQueue.offer(response)) {
+            close("Maximum pipelining threshold exceeded, pipelining limit: $maxPipelinedRequests")
         }
 
-        if (empty) {
-            // TODO: is this better than just the addAsync?
-            if (!connectionWriter.offer(this)) {
-                connectionWriter.addAsync(this)
-            }
+        if (!isWriteQueued && !hasPendingWrites) {
+            isWriteQueued = true
+            connectionWriter.addAsync(this)
         }
     }
 
-//    private val queuedRequestsQueue = SpscQueuePlugin.get<HttpExchange>(1024)
-//    private val queuedRequests = InternalQueue(queuedRequestsQueue)
-//    private val queuedRequestsWriter = queuedRequests.queueWriter
-//    private val queuedRequestsReader = queuedRequests.queueReader
-
-    val queuedRequests = ArrayDeque<HttpExchange>(1024)
-
-    suspend fun queueRequest(exchange: HttpExchange) {
-        val wasEmpty = queuedRequests.isEmpty()
-        queuedRequests.add(exchange)
+    suspend fun enqueueRequest(exchange: HttpExchange) {
+        val wasEmpty = requestsQueue.isEmpty()
+        requestsQueue.add(exchange)
         if (wasEmpty) {
-            if (requestsReadyWriter.offer(this)) {
-                requestsReadyWriter.addAsync(this)
-            }
+            requestsReadyWriter.addAsync(this)
         }
-
-//        if (queuedRequestsReader.isEmpty()) {
-//            requestsReadyWriter.addAsync(this)
-//        }
-//        queuedRequestsWriter.addAsync(exchange)
     }
 
     suspend fun handleRequests() {
-        var request = queuedRequests.poll()
-        //var request = queuedRequestsReader.poll()
+        var request = requestsQueue.poll()
         while (request != null) {
             val handler = worker.getHandler(request.requestUrl.getPathBytes()) ?: genericNotFoundHandler
             handler.handle(request)
-            request = queuedRequests.poll()
-//            request = queuedRequestsReader.poll()
+            request = requestsQueue.poll()
         }
     }
 
-    fun writeResponse(response: HttpResponse): Boolean {
-        if (isClosed) {
+    suspend fun readRequests(){
+        val bytesRead = readIntoBuffer()
+
+        if(bytesRead < 0){
+            close()
+        }
+        else if(bytesRead > 0) {
+            parseRequests()
+        }
+    }
+
+    private tailrec fun readIntoBuffer(): Int {
+        val buffer = getReadBuffer()
+        if (!buffer.hasRemaining()) {
+            if(buffer.capacity() == maxRequestSize){
+                close("Request too large.")
+                return 0
+            }
+            val oneUseBuffer = worker.oneUseByteBufferAllocator.getBuffer(Math.min(maxRequestSize, buffer.capacity() * 2))
+            oneUseBuffer.buffer.put(buffer)
+            releaseReadBuffer()
+            readBuffer = oneUseBuffer
+            return readIntoBuffer()
+        }
+
+        try {
+            val readBytes = socket.read(buffer)
+            return readBytes
+        }
+        catch (ex: IOException) {
+            close("Unexpected IO Exception")
+            return 0
+        }
+    }
+
+    private suspend fun parseRequests() {
+        val buffer = getReadBuffer()
+        buffer.flip()
+
+        try {
+            var preParsePosition = buffer.position()
+            var request = parseHttpRequest(buffer, this)
+
+            while (request is HttpExchange) {
+                enqueueRequest(request)
+                if(!buffer.hasRemaining()){
+                    // Recycle empty buffers back into the pool when not in use
+                    releaseReadBuffer()
+                    return
+                }
+                preParsePosition = buffer.position()
+                request = parseHttpRequest(buffer, this)
+            }
+
+            when(request) {
+                IncompleteRequestParseError -> {
+                    // reset the position so parsing starts at the beginning after more reads
+                    buffer.position(preParsePosition)
+                    buffer.compact()
+                }
+                InvalidVersionParseError -> close("Unable to parse HTTP request version.")
+                InvalidMethodParseError -> close("Unable to parse HTTP request method.")
+                InvalidUrlParseError -> close("Unable to parse HTTP request url.")
+                InsecureCredentialsParseError -> close("Credentials provided on unsecure connection.")
+                is HttpExchange -> {} // no-op
+            }
+        }
+        catch (ex: Exception) {
+            ex.printStackTrace()
+            close("Unexpected IO exception while reading from socket.")
+        }
+    }
+
+    private fun flushAndReleaseOrWait(managedBuffer: ManagedByteBuffer?): Boolean {
+        if (managedBuffer == null) {
             return true
         }
 
-        val buffer = getWriteBuffer()
-        renderResponse(buffer, response)
-        buffer.flip()
+        if (!hasPendingWrites) {
+            managedBuffer.buffer.flip()
+        }
+
         try {
-            socket.write(buffer)
+            val wrote = socket.write(managedBuffer.buffer)
+            if (wrote < 0) {
+                close()
+            }
         }
-        catch (ex: ClosedChannelException) {
+        catch (ex: IOException) {
             close()
-            return true
         }
-        if (!buffer.hasRemaining()) {
+
+        if (!managedBuffer.buffer.hasRemaining()) {
             releaseWriteBuffer()
             return true
         }
         else {
+            this.writeBuffer = managedBuffer
+            if (!hasPendingWrites) {
+                hasPendingWrites = true
+                addInterestOps(SelectionKey.OP_WRITE)
+            }
             return false
         }
     }
 
-    fun writeResponses(): Boolean {
-        val buffer = getWriteBuffer()
-        if (!buffer.hasRemaining()) {
-            logger.error("FULL BUFFER")
-            TODO()
-            val wrote = socket.write(buffer)
-            if (wrote < 0) {
-                logger.error("DISCONNECTED DURING WRITE")
-                return true
-            }
-            else if (wrote == 0) {
-                logger.error("WROTE 0 BYTES")
-                return false
+    tailrec fun writeResponses() {
+        val nextResponse = responsesQueue.peek()
+        if (nextResponse == null) {
+            flushAndReleaseOrWait(this.writeBuffer)
+        }
+        else {
+            val nextResponseSize = nextResponse.getOutputSize(worker.commonHeaderSize)
+            val currentManagedBuffer = this.writeBuffer
+
+            if (currentManagedBuffer == null) {
+                val newManagedBuffer = if (nextResponseSize < reusableBufferSize) {
+                    worker.connectionBufferPool.getBuffer()
+                }
+                else {
+                    worker.oneUseByteBufferAllocator.getBuffer(nextResponseSize)
+                }
+
+                this.writeBuffer = newManagedBuffer
+                responsesQueue.remove().writeToBuffer(newManagedBuffer.buffer, worker.getCommonHeaders())
+                writeResponses()
             }
             else {
-                logger.info("Wrote $wrote bytes")
-                if (!buffer.hasRemaining()) {
-                    return true
+                val currentBuffer = currentManagedBuffer.buffer
+
+                if (hasPendingWrites) {
+                    if (nextResponseSize <= currentBuffer.capacity() - currentBuffer.limit()) {
+                        currentBuffer.position(currentBuffer.limit())
+                        currentBuffer.limit(currentBuffer.capacity())
+
+                        responsesQueue.remove().writeToBuffer(currentBuffer, worker.getCommonHeaders())
+                        writeResponses()
+                    }
+                    else if (nextResponseSize <= currentBuffer.position() + (currentBuffer.capacity() - currentBuffer.limit())) {
+                        currentBuffer.compact()
+
+                        responsesQueue.remove().writeToBuffer(currentBuffer, worker.getCommonHeaders())
+                        writeResponses()
+                    }
+                    else {
+                        if (flushAndReleaseOrWait(currentManagedBuffer)) {
+                            writeResponses()
+                        }
+                    }
+                }
+                else if (nextResponseSize <= currentBuffer.remaining()) {
+                    responsesQueue.remove().writeToBuffer(currentBuffer, worker.getCommonHeaders())
+                    writeResponses()
+                }
+                else {
+                    if (flushAndReleaseOrWait(currentManagedBuffer)) {
+                        writeResponses()
+                    }
                 }
             }
         }
-        else {
-            var response = readyResponseReader.poll()
-            while (buffer.hasRemaining() && response != null) {
-                renderResponse(buffer, response)
-                response = readyResponseReader.poll()
-            }
-            buffer.flip()
-            val wrote = socket.write(buffer)
-            logger.debug { "Wrote $wrote bytes to socket." }
-            //logger.error("buffer after write: position: ${buffer.position()}, limit: ${buffer.limit()}, remaining: ${buffer.remaining()}, hasRemaining: ${buffer.hasRemaining()}")
-//            println("Wrote $wrote bytes")
-            if (!buffer.hasRemaining()) {
-                releaseWriteBuffer()
-                return true
-            }
-            else {
-//                logger.error("INCOMPLETE WRITE")
-                return false
-//                System.exit(1)
-            }
+    }
+
+    private fun removeInterestOps(removeInterestOps: Int) {
+        try {
+            selectionKey.interestOps(selectionKey.interestOps() and removeInterestOps.inv())
+        }
+        catch (ex: CancelledKeyException) {
+            close("Connection closed.")
         }
     }
 
-    fun renderResponse(buffer: ByteBuffer,
-                       response: HttpResponse): Boolean {
-        val size = response.getOutputSize() + worker.commonHeaderSize
-
-        if (buffer.remaining() < size) {
-            return false
+    private fun addInterestOps(newInterestOps: Int) {
+        try {
+            selectionKey.interestOps(selectionKey.interestOps() or newInterestOps)
         }
-
-        buffer.put(HttpVersion.HTTP11.bytes)
-        buffer.put(spaceByte)
-        buffer.put(response.code.bytes)
-        buffer.putShort(carriageReturnNewLineShort)
-
-        buffer.put(worker.getCommonHeaders())
-
-        response.writeHeaders(buffer)
-
-        buffer.putShort(carriageReturnNewLineShort)
-
-        response.writeBody(buffer)
-        return true
-    }
-
-//    protected fun finalize() {
-//        if (socket.isOpen || socket.isConnected) {
-//            println("FAILED TO CLOSE SOCKET HttpConnection")
-//            println("${socket.isOpen} / ${socket.isConnected}")
-//            System.exit(1)
-//        }
-//        else if (readBuffer != null || writeBuffer != null || handshakeBuffer != null) {
-//            println("FAILED TO RELEASE BUFFER HttpConnection")
-//            System.exit(1)
-//        }
-//    }
-}
-
-/*
-class HttpClientConnection(worker: HttpClientWorker,
-                           socket: SocketChannel,
-                           selectionKey: SelectionKey,
-                           private val readyPromise: InternalFuture.InternalPromise<HttpClientConnection>) : HttpConnection(worker, socket, selectionKey) {
-    override val shouldSendMasked: Boolean = false
-    override val requiresMasked: Boolean = true
-    private val sendQueue = SpscQueuePlugin.get<WebsocketFrame>(1024)
-
-    override fun close(reason: String?) {
-        if (!isHandshakeComplete) {
-            readyPromise.completeExceptionally(ConnectException(reason))
-        }
-        super.close(reason)
-    }
-
-//    fun getFrameWriter(): QueueWriter<WebsocketFrame> {
-//        TODO()
-    //ExternalQueueWriter<WebsocketFrame>(sendQueue,
-//    }
-
-    suspend fun send(frame: WebsocketFrame): Unit {
-        if (!sendQueue.offer(frame)) {
-            TODO()
+        catch (ex: CancelledKeyException) {
+            close("Connection closed.")
         }
     }
-
-    fun sendHandshake(handshaker: WebsocketHandshaker,
-                      randomGenerator: Random) {
-        val address = socket.remoteAddress
-        if (address is InetSocketAddress) {
-            val keyBytes = ByteArray(16)
-            randomGenerator.nextBytes(keyBytes)
-            val handshake = handshaker.getClientHandshakeRequest(address.hostName, keyBytes)
-            try {
-                socket.write(handshake)
-            }
-            catch (e: IOException) {
-                close("Unexpected error replying to initial handshake.")
-            }
-        }
-        else {
-            throw Exception("Unexpected socket address, should be InetSocketAddress")
-        }
-    }
-
-    override fun handleHandshakeRequest(request: ParsedHttpRequest,
-                                        handshaker: WebsocketHandshaker): Boolean {
-        // TODO: validate the server sent some sensible handshake response
-        readyPromise.complete(this)
-        return true
-    }
-}
-*/
-
-internal class DummyConnection(worker: HttpServerWorker,
-                               socket: SocketChannel,
-                               selectionKey: SelectionKey) : HttpServerConnection(worker, socket, selectionKey) {
-
-//    override fun handleHandshakeRequest(request: ParsedHttpRequest, handshaker: WebsocketHandshaker): Boolean = false
-//    override val shouldSendMasked: Boolean = false
-//    override val requiresMasked: Boolean = false
-
 }
