@@ -21,8 +21,8 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.*
 
-data class URLHandlerMapping(val url: ByteArray,
-                             val handler: HttpRequestHandler) : ByteBacked {
+class URLHandlerMapping(val url: ByteArray,
+                        val handler: HttpRequestHandler) : ByteBacked {
     override val bytes = url
 }
 
@@ -113,7 +113,7 @@ class HttpServerWorker(val server: HttpServer,
     fun getHandler(urlBytes: ByteArray): HttpRequestHandler? = handlerFinder.find(urlBytes)?.handler
 
     private fun addURLHandler(url: String,
-                      handlerGenerator: () -> HttpRequestHandler) {
+                              handlerGenerator: () -> HttpRequestHandler) {
         val urlBytes = url.toByteArray(Charsets.US_ASCII)
         val handler = handlerGenerator()
 

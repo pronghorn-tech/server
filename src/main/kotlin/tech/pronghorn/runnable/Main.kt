@@ -9,7 +9,6 @@ import tech.pronghorn.server.HttpServer
 import tech.pronghorn.server.config.HttpServerConfig
 import tech.pronghorn.server.handlers.DirectHttpRequestHandler
 import tech.pronghorn.server.handlers.StaticHttpRequestHandler
-import java.lang.management.ManagementFactory
 import java.net.InetSocketAddress
 
 data class JsonExample(val message: String)

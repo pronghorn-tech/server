@@ -88,7 +88,7 @@ class SingleSocketManagerService(override val worker: HttpServerWorker,
 
 class MultiSocketManagerService(override val worker: HttpServerWorker,
                                 private val selector: Selector) : SocketManagerService() {
-    override val serverSocket = ServerSocketChannel.open()
+    override val serverSocket: ServerSocketChannel = ServerSocketChannel.open()
     init {
         ReusePort.setReusePort(serverSocket)
         serverSocket.configureBlocking(false)
