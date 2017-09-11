@@ -173,7 +173,6 @@ open class HttpServerConnection(val worker: HttpServerWorker,
                 InvalidVersionParseError -> close("Unable to parse HTTP request version.")
                 InvalidMethodParseError -> close("Unable to parse HTTP request method.")
                 InvalidUrlParseError -> close("Unable to parse HTTP request url.")
-                InsecureCredentialsParseError -> close("Credentials provided on unsecure connection.")
                 is HttpExchange -> {
                 } // no-op
             }

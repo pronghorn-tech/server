@@ -9,15 +9,18 @@ private const val httpAsInt = 1752462448
 private const val doubleSlashAsShort: Short = 12079
 private const val secureByte: Byte = 0x73
 
-fun parseHttpURI(buffer: ByteBuffer): HttpUrlParseResult {
-    var byte = buffer.get()
+fun parseHttpUrl(buffer: ByteBuffer): HttpUrlParseResult {
+    if (!buffer.hasRemaining()) {
+        return IncompleteHttpUrl
+    }
 
+    var byte = buffer.get()
     var pathContainsPercentEncoding = false
-    var credentialsStart = -1
     var pathStart = -1
     var portStart = -1
     var hostStart = -1
     var queryParamStart = -1
+    var pathEnd = -1
     var end = -1
     var port: Int? = null
     var isSecure: Boolean? = null
@@ -36,6 +39,7 @@ fun parseHttpURI(buffer: ByteBuffer): HttpUrlParseResult {
                 pathContainsPercentEncoding = true
             }
             else if (byte == questionByte) {
+                pathEnd = buffer.position() - 1
                 queryParamStart = buffer.position()
             }
             else if (byte == spaceByte) {
@@ -122,26 +126,21 @@ fun parseHttpURI(buffer: ByteBuffer): HttpUrlParseResult {
             }
         }
 
-        while (buffer.hasRemaining()) {
-            byte = buffer.get()
-            if (byte == percentByte) {
-                pathContainsPercentEncoding = true
-            }
-            else if (byte == questionByte) {
-                queryParamStart = buffer.position()
-                break
-            }
-            else if (byte == atByte) {
-                if (!isSecure) {
-                    return InsecureCredentials
+        if (end == -1) {
+            while (buffer.hasRemaining()) {
+                byte = buffer.get()
+                if (byte == percentByte) {
+                    pathContainsPercentEncoding = true
                 }
-
-                credentialsStart = pathStart
-                pathStart = buffer.position()
-            }
-            else if (byte == spaceByte) {
-                end = buffer.position() - 1
-                break
+                else if (byte == questionByte) {
+                    pathEnd = buffer.position() - 1
+                    queryParamStart = buffer.position()
+                    break
+                }
+                else if (byte == spaceByte) {
+                    end = buffer.position() - 1
+                    break
+                }
             }
         }
     }
@@ -150,8 +149,12 @@ fun parseHttpURI(buffer: ByteBuffer): HttpUrlParseResult {
         end = buffer.position()
     }
 
+    if (pathEnd == -1) {
+        pathEnd = end
+    }
+
     val path = if (pathStart != -1) {
-        AsciiString(buffer, pathStart, end - pathStart)
+        AsciiString(buffer, pathStart, pathEnd - pathStart)
     }
     else {
         null
@@ -162,13 +165,6 @@ fun parseHttpURI(buffer: ByteBuffer): HttpUrlParseResult {
     }
     else {
         end
-    }
-
-    val credentials = if (credentialsStart != -1) {
-        AsciiString(buffer, credentialsStart, prePath - credentialsStart)
-    }
-    else {
-        null
     }
 
     val host = if (hostStart != -1) {
@@ -187,7 +183,6 @@ fun parseHttpURI(buffer: ByteBuffer): HttpUrlParseResult {
 
     return StringLocationHttpUrl(
             path = path,
-            credentials = credentials,
             isSecure = isSecure,
             host = host,
             port = port,

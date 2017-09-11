@@ -38,7 +38,7 @@ fun parseHttpRequest(buffer: ByteBuffer,
         return InvalidMethodParseError
     }
 
-    val urlResult = parseHttpURI(buffer)
+    val urlResult = parseHttpUrl(buffer)
     val url: HttpUrl = when (urlResult) {
         is HttpUrl -> urlResult
         InvalidHttpUrl -> return InvalidUrlParseError
@@ -50,7 +50,6 @@ fun parseHttpRequest(buffer: ByteBuffer,
                 return InvalidUrlParseError
             }
         }
-        InsecureCredentials -> return InsecureCredentialsParseError
     }
 
     val urlEnd = buffer.position() - 1

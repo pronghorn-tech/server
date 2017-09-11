@@ -13,8 +13,6 @@ object InvalidMethodParseError : HttpParseResult()
 
 object InvalidVersionParseError : HttpParseResult()
 
-object InsecureCredentialsParseError : HttpParseResult()
-
 class HttpExchange(val requestMethod: HttpMethod,
                    val requestUrl: HttpUrl,
                    val version: HttpVersion,
