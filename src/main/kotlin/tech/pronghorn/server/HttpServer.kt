@@ -1,8 +1,6 @@
 package tech.pronghorn.server
 
-import mu.KotlinLogging
-import tech.pronghorn.coroutines.core.CoroutineWorker
-import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
+import tech.pronghorn.coroutines.core.CoroutineApplication
 import tech.pronghorn.server.config.HttpServerConfig
 import tech.pronghorn.server.handlers.HttpRequestHandler
 import tech.pronghorn.server.services.MultiSocketManagerService
@@ -13,9 +11,7 @@ import java.nio.channels.Selector
 import java.nio.channels.ServerSocketChannel
 import java.util.concurrent.locks.ReentrantLock
 
-class HttpServer(val config: HttpServerConfig) {
-    private val logger = KotlinLogging.logger {}
-    private val workers = ConcurrentSetPlugin.get<HttpServerWorker>()
+class HttpServer(val config: HttpServerConfig) : CoroutineApplication<HttpServerWorker>(config.workerCount) {
     private val serverSocket by lazy {
         val socket = ServerSocketChannel.open()
         socket.configureBlocking(false)
@@ -24,38 +20,21 @@ class HttpServer(val config: HttpServerConfig) {
     private val acceptLock by lazy { ReentrantLock() }
     private val distributionStrategy by lazy { RoundRobinConnectionDistributionStrategy(workers) }
 
-    var isRunning = false
-        private set
+    constructor(address: InetSocketAddress) : this(HttpServerConfig(address))
 
-    init {
-        for (x in 1..config.workerCount) {
-            val worker = HttpServerWorker(this, config)
-            workers.add(worker)
-        }
-    }
+    override fun spawnWorker(): HttpServerWorker = HttpServerWorker(this, config)
 
-    constructor(address: InetSocketAddress): this(HttpServerConfig(address))
-
-    fun start() {
+    override fun onStart() {
         logger.info { "Starting server with configuration: $config" }
-        isRunning = true
-        workers.forEach(CoroutineWorker::start)
     }
 
-    fun shutdown() {
-        logger.info { "Server at ${config.address} shutting down" }
-        isRunning = false
-        try {
-            workers.forEach(HttpServerWorker::shutdown)
-        }
-        catch (ex: Exception) {
-            ex.printStackTrace()
-        }
+    override fun onShutdown() {
+        logger.info { "Shutting down server at ${config.address}." }
     }
 
     fun getSocketManagerService(worker: HttpServerWorker,
                                 selector: Selector): SocketManagerService {
-        if(config.reusePort){
+        if (config.reusePort) {
             return MultiSocketManagerService(worker, selector)
         }
         else {

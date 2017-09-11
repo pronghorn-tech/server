@@ -1,8 +1,8 @@
 package tech.pronghorn.server
 
-import mu.KotlinLogging
 import tech.pronghorn.http.*
 import tech.pronghorn.plugins.internalQueue.InternalQueuePlugin
+import tech.pronghorn.plugins.spscQueue.SpscQueuePlugin
 import tech.pronghorn.server.bufferpools.ManagedByteBuffer
 import tech.pronghorn.server.handlers.StaticHttpRequestHandler
 import tech.pronghorn.server.services.HttpRequestHandlerService
@@ -21,7 +21,6 @@ open class HttpServerConnection(val worker: HttpServerWorker,
                                 val socket: SocketChannel,
                                 val selectionKey: SelectionKey) {
     private var isClosed = false
-    private val logger = KotlinLogging.logger {}
     private val maxPipelinedRequests = worker.server.config.maxPipelinedRequests
     private val reusableBufferSize = worker.server.config.reusableBufferSize
     private val maxRequestSize = worker.server.config.maxRequestSize
@@ -76,7 +75,6 @@ open class HttpServerConnection(val worker: HttpServerWorker,
     }
 
     open fun close(reason: String? = null) {
-        logger.debug { "Closing connection : $reason" }
         isReadQueued = false
         isClosed = true
         selectionKey.cancel()

@@ -30,10 +30,8 @@ fun main(args: Array<String>) {
     val host = "10.0.1.2"
     val port = 2648
     val address = InetSocketAddress(host, port)
-    val config = HttpServerConfig(address, Runtime.getRuntime().availableProcessors())
-    val server = HttpServer(config)
+    val server = HttpServer(address)
+    server.start()
     server.registerUrlHandler("/plaintext", helloWorldHandler)
     server.registerUrlHandler("/json", jsonHandler)
-    server.start()
-    Thread.sleep(3600 * 1000)
 }

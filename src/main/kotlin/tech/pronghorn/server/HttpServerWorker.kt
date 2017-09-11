@@ -58,12 +58,10 @@ class HttpServerWorker(val server: HttpServer,
     fun getConnectionCount(): Int = connections.size
 
     fun addConnection(connection: HttpServerConnection) {
-        assert(isSchedulerThread())
         connections.add(connection)
     }
 
     fun removeConnection(connection: HttpServerConnection) {
-        assert(isSchedulerThread())
         connections.remove(connection)
     }
 

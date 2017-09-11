@@ -1,6 +1,6 @@
 package tech.pronghorn.util.finder
 
-import tech.pronghorn.plugins.arrayHash.ArrayHashPlugin
+import tech.pronghorn.plugins.arrayHash.ArrayHasherPlugin
 import java.nio.ByteBuffer
 import java.util.*
 
@@ -11,7 +11,7 @@ internal class DifferentiatedFinder<T : ByteBacked>(toLookup: Array<T>): ByteBac
     private val byLength = arrayOfNulls<Array<ByteBacked>>(maxLength)
     private val mostDifferentiatedBytes = Array(maxLength, { Differentiation() })
     private val hashMap = HashMap<Long, T>(toLookup.size)
-    private val hasher = ArrayHashPlugin.get()
+    private val hasher = ArrayHasherPlugin.get()
 
     data class Differentiation(val byteIndex: Int = 0,
                                val duplicateCount: Int = 0)

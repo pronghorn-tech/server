@@ -1,6 +1,6 @@
 package tech.pronghorn.server.config
 
-import mu.KotlinLogging
+import tech.pronghorn.plugins.logging.LoggingPlugin
 import tech.pronghorn.server.ReusePort
 import tech.pronghorn.util.kibibytes
 import tech.pronghorn.util.mebibytes
@@ -59,8 +59,7 @@ class HttpServerConfig(val address: InetSocketAddress,
                        maxPipelinedRequests: Int = HttpServerConfigDefaultValues.maxPipelinedRequests,
                        maxRequestSize: Int = HttpServerConfigDefaultValues.maxRequestSize,
                        val useDirectByteBuffers: Boolean = HttpServerConfigDefaultValues.useDirectByteBuffers) {
-    private val logger = KotlinLogging.logger {}
-
+    private val logger = LoggingPlugin.get(javaClass)
     val workerCount = validateWorkerCount(workerCount)
     val serverName = validateServerName(serverName)
     val reusableBufferSize = validateReusableBufferSize(reusableBufferSize)

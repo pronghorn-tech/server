@@ -1,12 +1,12 @@
 package tech.pronghorn.util.finder
 
-import tech.pronghorn.plugins.arrayHash.ArrayHashPlugin
+import tech.pronghorn.plugins.arrayHash.ArrayHasherPlugin
 import java.nio.ByteBuffer
-import java.util.HashMap
+import java.util.*
 
 internal class HashFinder<T : ByteBacked>(private val toLookup: Array<T>): ByteBackedFinder<T> {
     private val hashMap = HashMap<Long, T>()
-    private val hasher = ArrayHashPlugin.get()
+    private val hasher = ArrayHasherPlugin.get()
 
     init {
         toLookup.forEach { value ->
