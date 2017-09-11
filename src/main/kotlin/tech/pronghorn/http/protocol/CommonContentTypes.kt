@@ -2,7 +2,7 @@ package tech.pronghorn.http.protocol
 
 import tech.pronghorn.util.finder.ByteBacked
 
-interface ContentType: ByteBacked {
+interface ContentType : ByteBacked {
     fun getTypeName(): String
 }
 
@@ -16,7 +16,7 @@ class InstanceContentType(private val value: AsciiString) : ContentType {
 
 
 enum class CommonContentTypes(private val displayName: String,
-                              val extensions: Array<String>): ContentType {
+                              val extensions: Array<String>) : ContentType {
     AudioAac("audio/aac", arrayOf(".aac")),
     AudioOgg("audio/ogg", arrayOf(".oga")),
     AudioWav("audio/x-wav", arrayOf(".wav")),

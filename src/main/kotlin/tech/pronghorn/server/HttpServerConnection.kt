@@ -10,9 +10,7 @@ import tech.pronghorn.util.runAllIgnoringExceptions
 import tech.pronghorn.util.write
 import java.io.IOException
 import java.nio.ByteBuffer
-import java.nio.channels.CancelledKeyException
-import java.nio.channels.SelectionKey
-import java.nio.channels.SocketChannel
+import java.nio.channels.*
 
 private val genericNotFoundHandler = StaticHttpRequestHandler(HttpResponses.NotFound())
 
@@ -113,13 +111,13 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         }
     }
 
-    suspend fun readRequests(){
+    suspend fun readRequests() {
         val bytesRead = readIntoBuffer()
 
-        if(bytesRead < 0){
+        if (bytesRead < 0) {
             close()
         }
-        else if(bytesRead > 0) {
+        else if (bytesRead > 0) {
             parseRequests()
         }
     }
@@ -127,7 +125,7 @@ open class HttpServerConnection(val worker: HttpServerWorker,
     private tailrec fun readIntoBuffer(): Int {
         val buffer = getReadBuffer()
         if (!buffer.hasRemaining()) {
-            if(buffer.capacity() == maxRequestSize){
+            if (buffer.capacity() == maxRequestSize) {
                 close("Request too large.")
                 return 0
             }
@@ -157,7 +155,7 @@ open class HttpServerConnection(val worker: HttpServerWorker,
 
             while (request is HttpExchange) {
                 enqueueRequest(request)
-                if(!buffer.hasRemaining()){
+                if (!buffer.hasRemaining()) {
                     // Recycle empty buffers back into the pool when not in use
                     releaseReadBuffer()
                     return
@@ -166,7 +164,7 @@ open class HttpServerConnection(val worker: HttpServerWorker,
                 request = parseHttpRequest(buffer, this)
             }
 
-            when(request) {
+            when (request) {
                 IncompleteRequestParseError -> {
                     // reset the position so parsing starts at the beginning after more reads
                     buffer.position(preParsePosition)
@@ -176,7 +174,8 @@ open class HttpServerConnection(val worker: HttpServerWorker,
                 InvalidMethodParseError -> close("Unable to parse HTTP request method.")
                 InvalidUrlParseError -> close("Unable to parse HTTP request url.")
                 InsecureCredentialsParseError -> close("Credentials provided on unsecure connection.")
-                is HttpExchange -> {} // no-op
+                is HttpExchange -> {
+                } // no-op
             }
         }
         catch (ex: Exception) {

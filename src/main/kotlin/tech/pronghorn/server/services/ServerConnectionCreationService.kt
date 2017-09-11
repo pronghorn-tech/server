@@ -3,9 +3,7 @@ package tech.pronghorn.server.services
 import tech.pronghorn.coroutines.service.MultiWriterExternalQueueService
 import tech.pronghorn.server.HttpServerConnection
 import tech.pronghorn.server.HttpServerWorker
-import java.nio.channels.SelectionKey
-import java.nio.channels.Selector
-import java.nio.channels.SocketChannel
+import java.nio.channels.*
 
 class ServerConnectionCreationService(override val worker: HttpServerWorker,
                                       private val selector: Selector) : MultiWriterExternalQueueService<SocketChannel>() {

@@ -88,14 +88,18 @@ class HttpServerConfig(val address: InetSocketAddress,
     private fun validateWorkerCount(value: Int): Int {
         val availableProcessors = Runtime.getRuntime().availableProcessors()
         if (value < 1) {
-            logger.warn { "workerCount value ($value) must be greater than zero, " +
-                    "using default value(${HttpServerConfigDefaultValues.workerCount})" }
+            logger.warn {
+                "workerCount value ($value) must be greater than zero, " +
+                        "using default value(${HttpServerConfigDefaultValues.workerCount})"
+            }
             return HttpServerConfigDefaultValues.workerCount
         }
         else {
             if (value > availableProcessors) {
-                logger.warn { "workerCount value ($value) is greater than available processors ($availableProcessors)." +
-                        "Utilizing more workers than there are available processors is not advised." }
+                logger.warn {
+                    "workerCount value ($value) is greater than available processors ($availableProcessors)." +
+                            "Utilizing more workers than there are available processors is not advised."
+                }
             }
             return value
         }
@@ -109,7 +113,7 @@ class HttpServerConfig(val address: InetSocketAddress,
     }
 
     private fun validateReusableBufferSize(value: Int): Int {
-        if(value < 1){
+        if (value < 1) {
             logger.warn { "reusableBufferSize set to invalid value ($value), using default: (${HttpServerConfigDefaultValues.reusableBufferSize})" }
             return HttpServerConfigDefaultValues.reusableBufferSize
         }
@@ -119,9 +123,11 @@ class HttpServerConfig(val address: InetSocketAddress,
     }
 
     private fun validateListenBacklog(value: Int): Int {
-        if(value < 1) {
-            logger.warn { "listenBacklog value ($value) must be greater than zero, " +
-            "using default value(${HttpServerConfigDefaultValues.listenBacklog})" }
+        if (value < 1) {
+            logger.warn {
+                "listenBacklog value ($value) must be greater than zero, " +
+                        "using default value(${HttpServerConfigDefaultValues.listenBacklog})"
+            }
             return HttpServerConfigDefaultValues.listenBacklog
         }
         else {
@@ -131,8 +137,10 @@ class HttpServerConfig(val address: InetSocketAddress,
 
     private fun validateAcceptGrouping(value: Int): Int {
         if (value < 1) {
-            logger.warn { "acceptGrouping value ($value) must be greater than zero, " +
-                    "using listenBacklog value ($listenBacklog)" }
+            logger.warn {
+                "acceptGrouping value ($value) must be greater than zero, " +
+                        "using listenBacklog value ($listenBacklog)"
+            }
             return listenBacklog
         }
         else {
@@ -150,9 +158,11 @@ class HttpServerConfig(val address: InetSocketAddress,
     }
 
     private fun validateMaxPipelinedRequests(value: Int): Int {
-        if(value < 1){
-            logger.warn { "maxPipelinedRequests value ($value) must be greater than zero. " +
-                    "To disable pipelining, use a value of 1. Using default value (${HttpServerConfigDefaultValues.maxPipelinedRequests})" }
+        if (value < 1) {
+            logger.warn {
+                "maxPipelinedRequests value ($value) must be greater than zero. " +
+                        "To disable pipelining, use a value of 1. Using default value (${HttpServerConfigDefaultValues.maxPipelinedRequests})"
+            }
             return HttpServerConfigDefaultValues.maxPipelinedRequests
         }
         else {
@@ -161,9 +171,11 @@ class HttpServerConfig(val address: InetSocketAddress,
     }
 
     private fun validateMaxRequestSize(value: Int): Int {
-        if(value < 1){
-            logger.warn { "maxRequestSize value($value) must be greater than zero. " +
-                    "Using default value (${HttpServerConfigDefaultValues.maxRequestSize})" }
+        if (value < 1) {
+            logger.warn {
+                "maxRequestSize value($value) must be greater than zero. " +
+                        "Using default value (${HttpServerConfigDefaultValues.maxRequestSize})"
+            }
             return HttpServerConfigDefaultValues.maxRequestSize
         }
         else {

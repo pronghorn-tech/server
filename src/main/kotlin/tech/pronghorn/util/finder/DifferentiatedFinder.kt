@@ -2,11 +2,12 @@ package tech.pronghorn.util.finder
 
 import tech.pronghorn.plugins.arrayHash.ArrayHasherPlugin
 import java.nio.ByteBuffer
-import java.util.*
+import java.util.Arrays
+import java.util.HashMap
 
 const val mostDifferentiatedCutoff = 4
 
-internal class DifferentiatedFinder<T : ByteBacked>(toLookup: Array<T>): ByteBackedFinder<T> {
+internal class DifferentiatedFinder<T : ByteBacked>(toLookup: Array<T>) : ByteBackedFinder<T> {
     private val maxLength = toLookup.map(ByteBacked::bytes).map { b -> b.size }.max() ?: 0
     private val byLength = arrayOfNulls<Array<ByteBacked>>(maxLength)
     private val mostDifferentiatedBytes = Array(maxLength, { Differentiation() })
@@ -22,15 +23,15 @@ internal class DifferentiatedFinder<T : ByteBacked>(toLookup: Array<T>): ByteBac
         }
 
         var x = 1
-        while(x < maxLength){
+        while (x < maxLength) {
             val atThisLength = toLookup.filter { backed -> backed.bytes.size == x + 1 }.toTypedArray<ByteBacked>()
-            if(atThisLength.isNotEmpty()) {
+            if (atThisLength.isNotEmpty()) {
                 var mostDifferentiatedByte = 0
                 var mostDuplicateCount = Integer.MAX_VALUE
                 val counts = IntArray(256)
                 var byteIndex = 0
 
-                while(byteIndex < x) {
+                while (byteIndex < x) {
                     var objIndex = 0
                     while (objIndex < atThisLength.size) {
                         counts[atThisLength[objIndex].bytes[byteIndex].toInt()] += 1
@@ -38,13 +39,13 @@ internal class DifferentiatedFinder<T : ByteBacked>(toLookup: Array<T>): ByteBac
                     }
 
                     val mostCount = counts.max() ?: 0
-                    if(mostCount < mostDuplicateCount){
+                    if (mostCount < mostDuplicateCount) {
                         mostDifferentiatedByte = byteIndex
                         mostDuplicateCount = mostCount
                     }
 
                     var y = 0
-                    while(y < counts.size){
+                    while (y < counts.size) {
                         counts[y] = 0
                         y += 1
                     }
@@ -73,23 +74,23 @@ internal class DifferentiatedFinder<T : ByteBacked>(toLookup: Array<T>): ByteBac
     override fun find(buffer: ByteBuffer,
                       offset: Int,
                       size: Int): T? {
-        if(size > maxLength){
+        if (size > maxLength) {
             return null
         }
 
         val index = size - 1
         val allPossible = byLength[index] ?: return null
 
-        if(allPossible.size < mostDifferentiatedCutoff) {
+        if (allPossible.size < mostDifferentiatedCutoff) {
             @Suppress("UNCHECKED_CAST")
             return allPossible.find { possible -> isEqual(possible.bytes, buffer, offset, size) } as T?
         }
         else {
             val mostDifferentiated = mostDifferentiatedBytes[index]
-            if(mostDifferentiated.duplicateCount > mostDifferentiatedCutoff){
+            if (mostDifferentiated.duplicateCount > mostDifferentiatedCutoff) {
                 return findByHash(buffer, offset, size)
             }
-            else if(mostDifferentiated.byteIndex > 0) {
+            else if (mostDifferentiated.byteIndex > 0) {
                 @Suppress("UNCHECKED_CAST")
                 return allPossible.find { possible -> isEqualStartingAt(possible.bytes, buffer, offset, size, mostDifferentiated.byteIndex) } as T?
             }
@@ -108,16 +109,16 @@ internal class DifferentiatedFinder<T : ByteBacked>(toLookup: Array<T>): ByteBac
         val index = bytes.size - 1
         val allPossible = byLength[index] ?: return null
 
-        if(allPossible.size < mostDifferentiatedCutoff) {
+        if (allPossible.size < mostDifferentiatedCutoff) {
             @Suppress("UNCHECKED_CAST")
             return allPossible.find { possible -> Arrays.equals(possible.bytes, bytes) } as T?
         }
         else {
             val mostDifferentiated = mostDifferentiatedBytes[index]
-            if(mostDifferentiated.duplicateCount > mostDifferentiatedCutoff){
+            if (mostDifferentiated.duplicateCount > mostDifferentiatedCutoff) {
                 return findByHash(bytes)
             }
-            else if(mostDifferentiated.byteIndex > 0) {
+            else if (mostDifferentiated.byteIndex > 0) {
                 @Suppress("UNCHECKED_CAST")
                 return allPossible.find { possible -> isEqualStartingAt(possible.bytes, bytes, mostDifferentiated.byteIndex) } as T?
             }

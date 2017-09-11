@@ -51,7 +51,7 @@ internal fun isEqualStartingAt(arr: ByteArray, buffer: ByteBuffer, offset: Int, 
 
     x = 0
     buffer.position(offset)
-    while(x < startingAt){
+    while (x < startingAt) {
         if (buffer.get() != arr[x]) {
             buffer.position(prePosition)
             return false

@@ -1,14 +1,14 @@
 package tech.pronghorn.http.protocol
 
 import java.nio.ByteBuffer
-import java.util.*
+import java.util.Arrays
 
 private fun bufferSliceToArray(buffer: ByteBuffer,
                                start: Int,
                                length: Int): ByteArray {
     val slice = ByteArray(length)
     val prePosition = buffer.position()
-    if(prePosition != start) {
+    if (prePosition != start) {
         buffer.position(start)
     }
     buffer.get(slice)

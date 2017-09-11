@@ -1,10 +1,8 @@
 package tech.pronghorn.http.protocol
 
-import tech.pronghorn.util.finder.ByteBacked
-import tech.pronghorn.util.finder.ByteBackedFinder
-import tech.pronghorn.util.finder.FinderGenerator
+import tech.pronghorn.util.finder.*
 
-enum class HttpMethod(val methodName: String): ByteBacked {
+enum class HttpMethod(val methodName: String) : ByteBacked {
     CONNECT("CONNECT"),
     DELETE("DELETE"),
     GET("GET"),

@@ -1,17 +1,17 @@
 package tech.pronghorn.util.finder
 
 import java.nio.ByteBuffer
-import java.util.*
+import java.util.Arrays
 
-internal class LengthPartitionedFinder<T : ByteBacked>(toLookup: Array<T>): ByteBackedFinder<T> {
+internal class LengthPartitionedFinder<T : ByteBacked>(toLookup: Array<T>) : ByteBackedFinder<T> {
     private val maxLength = toLookup.map(ByteBacked::bytes).map { b -> b.size }.max() ?: 0
     private val byLength = arrayOfNulls<Array<ByteBacked>>(maxLength)
 
     init {
         var x = 1
-        while(x < maxLength){
+        while (x < maxLength) {
             val list = toLookup.filter { backed -> backed.bytes.size == x + 1 }
-            if(list.isNotEmpty()) {
+            if (list.isNotEmpty()) {
                 val arr = Array<ByteBacked>(list.size, { index -> list[index] })
                 byLength[x] = arr
             }
@@ -22,7 +22,7 @@ internal class LengthPartitionedFinder<T : ByteBacked>(toLookup: Array<T>): Byte
     override fun find(buffer: ByteBuffer,
                       offset: Int,
                       size: Int): T? {
-        if(size > maxLength){
+        if (size > maxLength) {
             return null
         }
 
@@ -32,7 +32,7 @@ internal class LengthPartitionedFinder<T : ByteBacked>(toLookup: Array<T>): Byte
     }
 
     override fun find(bytes: ByteArray): T? {
-        if(bytes.size > maxLength){
+        if (bytes.size > maxLength) {
             return null
         }
         val allPossible = byLength[bytes.size - 1] ?: return null

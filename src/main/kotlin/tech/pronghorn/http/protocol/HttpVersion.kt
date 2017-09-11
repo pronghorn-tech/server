@@ -1,8 +1,6 @@
 package tech.pronghorn.http.protocol
 
-import tech.pronghorn.util.finder.ByteBacked
-import tech.pronghorn.util.finder.ByteBackedFinder
-import tech.pronghorn.util.finder.FinderGenerator
+import tech.pronghorn.util.finder.*
 import java.nio.ByteBuffer
 
 interface HttpVersion {
@@ -11,7 +9,7 @@ interface HttpVersion {
 }
 
 class InstanceHttpVersion(override val majorVersion: Int,
-                          override val minorVersion: Int): HttpVersion {
+                          override val minorVersion: Int) : HttpVersion {
     companion object {
         fun parse(buffer: ByteBuffer,
                   offset: Int,
@@ -21,22 +19,22 @@ class InstanceHttpVersion(override val majorVersion: Int,
             var afterColon = false
             var read = 0
             buffer.position(offset)
-            while(read < length) {
-                if(!buffer.hasRemaining()){
+            while (read < length) {
+                if (!buffer.hasRemaining()) {
                     return null
                 }
 
                 val byte = buffer.get()
-                if(byte == colonByte){
-                    if(majorVersion == 0){
+                if (byte == colonByte) {
+                    if (majorVersion == 0) {
                         return null
                     }
                     afterColon = true
                 }
-                else if(byte < 48 || byte > 57){
+                else if (byte < 48 || byte > 57) {
                     return null
                 }
-                else if(!afterColon){
+                else if (!afterColon) {
                     majorVersion = (majorVersion * 10) + (byte - 48)
                 }
                 else {
@@ -52,7 +50,7 @@ class InstanceHttpVersion(override val majorVersion: Int,
 
 enum class SupportedHttpVersions(val versionName: String,
                                  override val majorVersion: Int,
-                                 override val minorVersion: Int): ByteBacked, HttpVersion {
+                                 override val minorVersion: Int) : ByteBacked, HttpVersion {
     HTTP11("HTTP/1.1", 1, 1),
     HTTP10("HTTP/1.0", 1, 0);
 

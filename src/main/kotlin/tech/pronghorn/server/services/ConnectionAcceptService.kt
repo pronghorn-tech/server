@@ -2,15 +2,9 @@ package tech.pronghorn.server.services
 
 import tech.pronghorn.coroutines.awaitable.QueueWriter
 import tech.pronghorn.coroutines.service.InternalSleepableService
-import tech.pronghorn.server.ConnectionDistributionStrategy
-import tech.pronghorn.server.HttpServerConnection
-import tech.pronghorn.server.HttpServerWorker
-import tech.pronghorn.server.ReusePort
+import tech.pronghorn.server.*
 import java.io.IOException
-import java.nio.channels.SelectionKey
-import java.nio.channels.Selector
-import java.nio.channels.ServerSocketChannel
-import java.nio.channels.SocketChannel
+import java.nio.channels.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 
@@ -89,10 +83,12 @@ class SingleSocketManagerService(override val worker: HttpServerWorker,
 class MultiSocketManagerService(override val worker: HttpServerWorker,
                                 private val selector: Selector) : SocketManagerService() {
     override val serverSocket: ServerSocketChannel = ServerSocketChannel.open()
+
     init {
         ReusePort.setReusePort(serverSocket)
         serverSocket.configureBlocking(false)
     }
+
     override val acceptSelectionKey: SelectionKey = serverSocket.register(selector, SelectionKey.OP_ACCEPT)
     private val config = worker.server.config
 
@@ -118,7 +114,7 @@ class MultiSocketManagerService(override val worker: HttpServerWorker,
             val connection = HttpServerConnection(worker, acceptedSocket, selectionKey)
             worker.addConnection(connection)
             selectionKey.attach(connection)
-            if(acceptedCount >= config.acceptGrouping){
+            if (acceptedCount >= config.acceptGrouping) {
                 break
             }
             acceptedSocket = serverSocket.accept()

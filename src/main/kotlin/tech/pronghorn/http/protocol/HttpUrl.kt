@@ -1,7 +1,8 @@
 package tech.pronghorn.http.protocol
 
 import java.net.URLDecoder
-import java.util.*
+import java.util.Arrays
+import java.util.Objects
 
 data class QueryParam(val name: AsciiString,
                       val value: AsciiString)
@@ -11,13 +12,13 @@ data class RequestCredentials(val username: AsciiString,
 
 sealed class HttpUrlParseResult
 
-object InvalidHttpUrl: HttpUrlParseResult()
+object InvalidHttpUrl : HttpUrlParseResult()
 
-object IncompleteHttpUrl: HttpUrlParseResult()
+object IncompleteHttpUrl : HttpUrlParseResult()
 
-object InsecureCredentials: HttpUrlParseResult()
+object InsecureCredentials : HttpUrlParseResult()
 
-sealed class HttpUrl: HttpUrlParseResult() {
+sealed class HttpUrl : HttpUrlParseResult() {
     abstract fun getPathBytes(): ByteArray
     abstract fun getPath(): String
     abstract fun isSecure(): Boolean?

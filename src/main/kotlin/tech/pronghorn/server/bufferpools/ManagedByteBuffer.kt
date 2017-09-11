@@ -17,7 +17,7 @@ class ReusableByteBuffer(private val manager: ReusableBufferPoolManager,
 
 class OneUseByteBuffer(bufferSize: Int,
                        direct: Boolean) : ManagedByteBuffer() {
-    override val buffer: ByteBuffer = if(direct) ByteBuffer.allocateDirect(bufferSize) else ByteBuffer.allocate(bufferSize)
+    override val buffer: ByteBuffer = if (direct) ByteBuffer.allocateDirect(bufferSize) else ByteBuffer.allocate(bufferSize)
 
     override fun release() {
         buffer.clear()

@@ -23,7 +23,7 @@ fun parseHttpURI(buffer: ByteBuffer): HttpUrlParseResult {
     var isSecure: Boolean? = null
 
     if (byte == forwardSlashByte) {
-        if(!buffer.hasRemaining()){
+        if (!buffer.hasRemaining()) {
             return RootURI
         }
 
@@ -40,16 +40,16 @@ fun parseHttpURI(buffer: ByteBuffer): HttpUrlParseResult {
             }
             else if (byte == spaceByte) {
                 end = buffer.position() - 1
-                if(end - pathStart == 1){
+                if (end - pathStart == 1) {
                     return RootURI
                 }
                 break
             }
         }
     }
-    else if(byte == asteriskByte){
+    else if (byte == asteriskByte) {
         // starURI
-        if(!buffer.hasRemaining() || buffer.get() == spaceByte){
+        if (!buffer.hasRemaining() || buffer.get() == spaceByte) {
             return StarURI
         }
         else {
@@ -71,7 +71,7 @@ fun parseHttpURI(buffer: ByteBuffer): HttpUrlParseResult {
         byte = buffer.get()
         isSecure = byte == secureByte
 
-        if(isSecure){
+        if (isSecure) {
             byte = buffer.get()
         }
 
@@ -103,7 +103,7 @@ fun parseHttpURI(buffer: ByteBuffer): HttpUrlParseResult {
                         pathStart = buffer.position() - 1
                         break
                     }
-                    else if(portByte == spaceByte) {
+                    else if (portByte == spaceByte) {
                         end = buffer.position() - 1
                         break
                     }
@@ -146,7 +146,7 @@ fun parseHttpURI(buffer: ByteBuffer): HttpUrlParseResult {
         }
     }
 
-    if(end == -1){
+    if (end == -1) {
         end = buffer.position()
     }
 

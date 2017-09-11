@@ -1,8 +1,6 @@
 package tech.pronghorn.http.protocol
 
-import tech.pronghorn.util.finder.ByteBacked
-import tech.pronghorn.util.finder.ByteBackedFinder
-import tech.pronghorn.util.finder.FinderGenerator
+import tech.pronghorn.util.finder.*
 
 interface HttpRequestHeader : ByteBacked {
     fun getHeaderName(): String

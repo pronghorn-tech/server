@@ -1,10 +1,6 @@
 package tech.pronghorn.http
 
-import tech.pronghorn.http.protocol.HttpResponseCode
-import tech.pronghorn.http.protocol.HttpResponseHeader
-import tech.pronghorn.http.protocol.SupportedHttpVersions
-import tech.pronghorn.http.protocol.carriageReturnNewLineShort
-import tech.pronghorn.http.protocol.spaceByte
+import tech.pronghorn.http.protocol.*
 import java.nio.ByteBuffer
 
 abstract class HttpResponse(val code: HttpResponseCode) {

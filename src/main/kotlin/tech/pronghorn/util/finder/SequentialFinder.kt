@@ -1,19 +1,19 @@
 package tech.pronghorn.util.finder
 
 import java.nio.ByteBuffer
-import java.util.*
+import java.util.Arrays
 
-internal class SequentialFinder<T : ByteBacked>(private val toLookup: Array<T>): ByteBackedFinder<T> {
+internal class SequentialFinder<T : ByteBacked>(private val toLookup: Array<T>) : ByteBackedFinder<T> {
     private val maxLength = toLookup.map(ByteBacked::bytes).map { b -> b.size }.max() ?: 0
 
     override fun find(buffer: ByteBuffer, offset: Int, size: Int): T? {
-        if(size > maxLength){
+        if (size > maxLength) {
             return null
         }
 
         var x = 0
-        while(x < toLookup.size){
-            if(isEqual(toLookup[x].bytes, buffer, offset, size)){
+        while (x < toLookup.size) {
+            if (isEqual(toLookup[x].bytes, buffer, offset, size)) {
                 return toLookup[x]
             }
             x += 1
@@ -27,8 +27,8 @@ internal class SequentialFinder<T : ByteBacked>(private val toLookup: Array<T>):
         }
 
         var x = 0
-        while(x < toLookup.size){
-            if(Arrays.equals(toLookup[x].bytes, bytes)){
+        while (x < toLookup.size) {
+            if (Arrays.equals(toLookup[x].bytes, bytes)) {
                 return toLookup[x]
             }
             x += 1

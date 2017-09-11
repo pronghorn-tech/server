@@ -16,7 +16,7 @@ class InstanceHttpResponseHeader(val displayName: String) : HttpResponseHeader {
     override fun getHeaderName(): String = displayName
 }
 
-enum class StandardHttpResponseHeaders(val displayName: String): HttpResponseHeader {
+enum class StandardHttpResponseHeaders(val displayName: String) : HttpResponseHeader {
     AccessControlAllowOrigin("Access-Control-Allow-Origin"),
     AcceptPatch("Accept-Patch"),
     AcceptRanges("Accept-Ranges"),
