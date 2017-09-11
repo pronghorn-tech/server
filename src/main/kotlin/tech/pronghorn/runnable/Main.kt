@@ -1,31 +1,14 @@
 package tech.pronghorn.runnable
 
-import com.jsoniter.output.JsonStream
-import tech.pronghorn.http.HttpExchange
-import tech.pronghorn.http.HttpResponse
 import tech.pronghorn.http.HttpResponses
 import tech.pronghorn.http.protocol.CommonContentTypes
 import tech.pronghorn.server.HttpServer
-import tech.pronghorn.server.config.HttpServerConfig
-import tech.pronghorn.server.handlers.DirectHttpRequestHandler
 import tech.pronghorn.server.handlers.StaticHttpRequestHandler
 import java.net.InetSocketAddress
-
-data class JsonExample(val message: String)
-
-class JsonHandler : DirectHttpRequestHandler() {
-    suspend override fun handleDirect(exchange: HttpExchange): HttpResponse {
-        val example = JsonExample("Hello, World!")
-        val json = JsonStream.serialize(example)
-        val jsonBytes = json.toByteArray(Charsets.UTF_8)
-        return HttpResponses.OK(jsonBytes, CommonContentTypes.ApplicationJson)
-    }
-}
 
 fun main(args: Array<String>) {
     val helloWorldResponse = HttpResponses.OK("Hello, World!".toByteArray(Charsets.US_ASCII), CommonContentTypes.TextPlain)
     val helloWorldHandler = StaticHttpRequestHandler(helloWorldResponse)
-    val jsonHandler = JsonHandler()
 
     val host = "10.0.1.2"
     val port = 2648
@@ -33,5 +16,4 @@ fun main(args: Array<String>) {
     val server = HttpServer(address)
     server.start()
     server.registerUrlHandler("/plaintext", helloWorldHandler)
-    server.registerUrlHandler("/json", jsonHandler)
 }
