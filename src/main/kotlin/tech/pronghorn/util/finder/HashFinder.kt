@@ -23,5 +23,5 @@ internal class HashFinder<T : ByteBacked>(private val toLookup: Array<T>): ByteB
         return find(bytes)
     }
 
-    override fun find(bytes: ByteArray): T? = hashMap.get(hasher(bytes))
+    override fun find(bytes: ByteArray): T? = hashMap[hasher(bytes)]
 }

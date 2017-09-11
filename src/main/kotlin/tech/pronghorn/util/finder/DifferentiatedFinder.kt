@@ -68,7 +68,7 @@ internal class DifferentiatedFinder<T : ByteBacked>(toLookup: Array<T>): ByteBac
         return find(bytes)
     }
 
-    private fun findByHash(bytes: ByteArray): T? = hashMap.get(hasher(bytes))
+    private fun findByHash(bytes: ByteArray): T? = hashMap[hasher(bytes)]
 
     override fun find(buffer: ByteBuffer,
                       offset: Int,

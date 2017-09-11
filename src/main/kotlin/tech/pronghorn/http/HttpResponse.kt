@@ -64,7 +64,7 @@ abstract class HttpResponse(val code: HttpResponseCode) {
     }
 
     private fun writeBody(buffer: ByteBuffer) {
-        if (body.size > 0) {
+        if (body.isNotEmpty()) {
             buffer.put(body, 0, body.size)
         }
     }

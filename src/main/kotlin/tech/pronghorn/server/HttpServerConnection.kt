@@ -2,7 +2,6 @@ package tech.pronghorn.server
 
 import tech.pronghorn.http.*
 import tech.pronghorn.plugins.internalQueue.InternalQueuePlugin
-import tech.pronghorn.plugins.spscQueue.SpscQueuePlugin
 import tech.pronghorn.server.bufferpools.ManagedByteBuffer
 import tech.pronghorn.server.handlers.StaticHttpRequestHandler
 import tech.pronghorn.server.services.HttpRequestHandlerService
@@ -140,8 +139,7 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         }
 
         try {
-            val readBytes = socket.read(buffer)
-            return readBytes
+            return socket.read(buffer)
         }
         catch (ex: IOException) {
             close("Unexpected IO Exception")
