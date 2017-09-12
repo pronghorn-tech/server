@@ -1,5 +1,3 @@
-mainClassName = 'tech.pronghorn.runnable.MainKt'
-
 //dokka {
 //    moduleName = 'tech.pronghorn.Server'
 //    outputFormat = 'javadoc'

@@ -3,6 +3,7 @@ package tech.pronghorn.http
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.RepeatedTest
 import org.mockito.Mockito.mock
+import tech.pronghorn.http.protocol.parseHttpRequest
 import tech.pronghorn.server.HttpServerConnection
 import tech.pronghorn.test.PronghornTest
 import tech.pronghorn.test.repeatCount

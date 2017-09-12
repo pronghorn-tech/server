@@ -1,6 +1,6 @@
-package tech.pronghorn.http
+package tech.pronghorn.http.protocol
 
-import tech.pronghorn.http.protocol.*
+import tech.pronghorn.http.*
 import tech.pronghorn.server.HttpServerConnection
 import tech.pronghorn.util.sliceToArray
 import java.nio.ByteBuffer

@@ -1,6 +1,7 @@
 package tech.pronghorn.server
 
 import tech.pronghorn.http.*
+import tech.pronghorn.http.protocol.parseHttpRequest
 import tech.pronghorn.plugins.internalQueue.InternalQueuePlugin
 import tech.pronghorn.server.bufferpools.ManagedByteBuffer
 import tech.pronghorn.server.handlers.*
