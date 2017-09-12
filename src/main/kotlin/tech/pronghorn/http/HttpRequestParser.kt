@@ -2,6 +2,7 @@ package tech.pronghorn.http
 
 import tech.pronghorn.http.protocol.*
 import tech.pronghorn.server.HttpServerConnection
+import tech.pronghorn.util.sliceToArray
 import java.nio.ByteBuffer
 import kotlin.experimental.or
 
@@ -74,7 +75,7 @@ fun parseHttpRequest(buffer: ByteBuffer,
         return InvalidVersionParseError
     }
 
-    val headers = LinkedHashMap<HttpRequestHeader, AsciiString>(defaultHeaderMapSize)
+    val headers = LinkedHashMap<HttpRequestHeader, ByteArray>(defaultHeaderMapSize)
 
     var headersEnd = -1
 
@@ -140,16 +141,15 @@ fun parseHttpRequest(buffer: ByteBuffer,
         val headerLength = headerTypeEnd - lineStart
 
         val headerType = StandardHttpRequestHeaders.find(buffer, lineStart, headerLength) ?:
-                InstanceHttpRequestHeader(AsciiString(buffer, lineStart, headerLength))
+                InstanceHttpRequestHeader(buffer.sliceToArray(lineStart, headerLength))
 
-        val headerValue = AsciiString(buffer, valueStart, valueEnd - valueStart)
+        val headerValue = buffer.sliceToArray(valueStart, valueEnd - valueStart)
 
         if (headerType == StandardHttpRequestHeaders.ContentLength) {
-            val contentLengthBytes = headerValue.bytes
             var v = 0
-            while (v < contentLengthBytes.size) {
+            while (v < headerValue.size) {
                 contentLength *= 10
-                contentLength += contentLengthBytes[0]
+                contentLength += headerValue[v]
                 v += 1
             }
         }

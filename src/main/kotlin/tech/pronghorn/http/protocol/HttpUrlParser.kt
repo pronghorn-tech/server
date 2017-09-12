@@ -1,5 +1,6 @@
 package tech.pronghorn.http.protocol
 
+import tech.pronghorn.util.sliceToArray
 import java.nio.ByteBuffer
 
 val RootURI = ValueHttpUrl("/")
@@ -154,7 +155,7 @@ fun parseHttpUrl(buffer: ByteBuffer): HttpUrlParseResult {
     }
 
     val path = if (pathStart != -1) {
-        AsciiString(buffer, pathStart, pathEnd - pathStart)
+        buffer.sliceToArray(pathStart, pathEnd - pathStart)
     }
     else {
         null
@@ -168,20 +169,20 @@ fun parseHttpUrl(buffer: ByteBuffer): HttpUrlParseResult {
     }
 
     val host = if (hostStart != -1) {
-        AsciiString(buffer, hostStart, if (portStart != -1) portStart - 1 - hostStart else prePath - hostStart)
+        buffer.sliceToArray(hostStart, if (portStart != -1) portStart - 1 - hostStart else prePath - hostStart)
     }
     else {
         null
     }
 
     val queryParams = if (queryParamStart != -1) {
-        AsciiString(buffer, queryParamStart, end - queryParamStart)
+        buffer.sliceToArray(queryParamStart, end - queryParamStart)
     }
     else {
         null
     }
 
-    return StringLocationHttpUrl(
+    return ByteArrayHttpUrl(
             path = path,
             isSecure = isSecure,
             host = host,

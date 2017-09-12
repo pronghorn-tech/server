@@ -3,7 +3,7 @@ package tech.pronghorn.server
 import tech.pronghorn.http.*
 import tech.pronghorn.plugins.internalQueue.InternalQueuePlugin
 import tech.pronghorn.server.bufferpools.ManagedByteBuffer
-import tech.pronghorn.server.handlers.StaticHttpRequestHandler
+import tech.pronghorn.server.handlers.*
 import tech.pronghorn.server.services.HttpRequestHandlerService
 import tech.pronghorn.server.services.ResponseWriterService
 import tech.pronghorn.util.runAllIgnoringExceptions
@@ -83,31 +83,32 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         releaseBuffers()
     }
 
-    suspend fun enqueueResponse(response: HttpResponse) {
+    private fun offerResponse(response: HttpResponse): Boolean {
         if (!responsesQueue.offer(response)) {
             close("Maximum pipelining threshold exceeded, pipelining limit: $maxPipelinedRequests")
         }
 
         if (!isWriteQueued && !hasPendingWrites) {
             isWriteQueued = true
-            connectionWriter.addAsync(this)
+            return connectionWriter.offer(this)
         }
-    }
-
-    suspend fun enqueueRequest(exchange: HttpExchange) {
-        val wasEmpty = requestsQueue.isEmpty()
-        requestsQueue.add(exchange)
-        if (wasEmpty) {
-            requestsReadyWriter.addAsync(this)
-        }
+        return true
     }
 
     suspend fun handleRequests() {
-        var request = requestsQueue.poll()
-        while (request != null) {
-            val handler = worker.getHandler(request.requestUrl.getPathBytes()) ?: genericNotFoundHandler
-            handler.handle(request)
-            request = requestsQueue.poll()
+        var exchange = requestsQueue.poll()
+        while (exchange != null) {
+            val handler = worker.getHandler(exchange.requestUrl.getPathBytes()) ?: genericNotFoundHandler
+            when(handler) {
+                is SuspendableHttpRequestHandler -> handler.handle(exchange)
+                is NonSuspendableHttpRequestHandler -> {
+                    val response = handler.handle(exchange)
+                    if(!offerResponse(response)) {
+                        connectionWriter.addAsync(this)
+                    }
+                }
+            }
+            exchange = requestsQueue.poll()
         }
     }
 
@@ -152,9 +153,20 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         try {
             var preParsePosition = buffer.position()
             var request = parseHttpRequest(buffer, this)
-
+            var wasEmpty = requestsQueue.isEmpty()
             while (request is HttpExchange) {
-                enqueueRequest(request)
+                if (!requestsQueue.offer(request)) {
+                    close("Maximum pipelining threshold exceeded, pipelining limit: $maxPipelinedRequests")
+                }
+
+                if (wasEmpty){
+                    wasEmpty = false
+                    if(!requestsReadyWriter.offer(this)){
+                        requestsReadyWriter.addAsync(this)
+                        wasEmpty = requestsQueue.isEmpty()
+                    }
+                }
+
                 if (!buffer.hasRemaining()) {
                     // Recycle empty buffers back into the pool when not in use
                     releaseReadBuffer()

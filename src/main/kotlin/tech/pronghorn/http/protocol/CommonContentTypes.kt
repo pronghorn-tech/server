@@ -6,8 +6,8 @@ interface ContentType : ByteBacked {
     fun getTypeName(): String
 }
 
-class InstanceContentType(private val value: AsciiString) : ContentType {
-    constructor(name: String) : this(AsciiString(name))
+class InstanceContentType(private val value: ByteArray) : ContentType {
+    constructor(name: String) : this(name.toByteArray(Charsets.US_ASCII))
 
     override val bytes = ByteArray(0)
 

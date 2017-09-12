@@ -4,10 +4,10 @@ import java.net.URLDecoder
 import java.util.Arrays
 import java.util.Objects
 
-data class QueryParam(val name: AsciiString,
-                      val value: AsciiString) {
+data class QueryParam(val name: ByteArray,
+                      val value: ByteArray) {
     constructor(name: String,
-                value: String) : this(AsciiString(name), AsciiString(value))
+                value: String) : this(name.toByteArray(Charsets.US_ASCII), value.toByteArray(Charsets.US_ASCII))
 }
 
 sealed class HttpUrlParseResult
@@ -49,18 +49,18 @@ sealed class HttpUrl : HttpUrlParseResult() {
 
 private val rootBytes = byteArrayOf(forwardSlashByte)
 
-class StringLocationHttpUrl(private val path: AsciiString?,
-                            private val isSecure: Boolean? = null,
-                            private val host: AsciiString? = null,
-                            private val port: Int? = null,
-                            private val queryParams: AsciiString? = null,
-                            private val pathContainsPercentEncoding: Boolean) : HttpUrl() {
+class ByteArrayHttpUrl(private val path: ByteArray?,
+                       private val isSecure: Boolean? = null,
+                       private val host: ByteArray? = null,
+                       private val port: Int? = null,
+                       private val queryParams: ByteArray? = null,
+                       private val pathContainsPercentEncoding: Boolean) : HttpUrl() {
     override fun getPathBytes(): ByteArray {
         if (path == null) {
             return rootBytes
         }
         else {
-            return path.bytes
+            return path
         }
     }
 
@@ -79,14 +79,14 @@ class StringLocationHttpUrl(private val path: AsciiString?,
 
     override fun isSecure(): Boolean? = isSecure
 
-    override fun getHostBytes(): ByteArray? = host?.bytes
+    override fun getHostBytes(): ByteArray? = host
 
     override fun getHost(): String? {
         if (host == null) {
             return null
         }
 
-        return String(host.bytes, Charsets.US_ASCII)
+        return String(host, Charsets.US_ASCII)
     }
 
     override fun getPort(): Int? = port
@@ -100,15 +100,15 @@ class StringLocationHttpUrl(private val path: AsciiString?,
         var x = 0
         var nameStart = 0
         var valueStart = -1
-        while(x < queryParams.bytes.size){
-            val byte = queryParams.bytes[x]
+        while(x < queryParams.size){
+            val byte = queryParams[x]
             if(byte == equalsByte){
                 valueStart = x + 1
             }
             else if(byte == ampersandByte){
                 if(valueStart != -1){
-                    val name = AsciiString(queryParams.bytes, nameStart, valueStart - nameStart - 1)
-                    val value = AsciiString(queryParams.bytes, valueStart, x - valueStart)
+                    val name = Arrays.copyOfRange(queryParams, nameStart, valueStart - nameStart - 1)
+                    val value = Arrays.copyOfRange(queryParams, valueStart, x - valueStart)
                     params.add(QueryParam(name, value))
                 }
                 nameStart = x + 1
@@ -118,8 +118,8 @@ class StringLocationHttpUrl(private val path: AsciiString?,
         }
 
         if(valueStart != -1){
-            val name = AsciiString(queryParams.bytes, nameStart, valueStart - nameStart - 1)
-            val value = AsciiString(queryParams.bytes, valueStart, x - valueStart)
+            val name = Arrays.copyOfRange(queryParams, nameStart, valueStart - nameStart - 1)
+            val value = Arrays.copyOfRange(queryParams, valueStart, x - valueStart)
             params.add(QueryParam(name, value))
         }
 

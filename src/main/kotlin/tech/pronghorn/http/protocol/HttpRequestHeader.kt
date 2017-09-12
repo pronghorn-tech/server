@@ -6,8 +6,8 @@ interface HttpRequestHeader : ByteBacked {
     fun getHeaderName(): String
 }
 
-class InstanceHttpRequestHeader(private val value: AsciiString) : HttpRequestHeader {
-    constructor(name: String) : this(AsciiString(name))
+class InstanceHttpRequestHeader(private val value: ByteArray) : HttpRequestHeader {
+    constructor(name: String) : this(name.toByteArray(Charsets.US_ASCII))
 
     override val bytes = ByteArray(0)
 
