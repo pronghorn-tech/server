@@ -97,7 +97,7 @@ class HttpServerConfig(val address: InetSocketAddress,
         else {
             if (value > availableProcessors) {
                 logger.warn {
-                    "workerCount value ($value) is greater than available processors ($availableProcessors)." +
+                    "workerCount value ($value) is greater than available processors ($availableProcessors). " +
                             "Utilizing more workers than there are available processors is not advised."
                 }
             }

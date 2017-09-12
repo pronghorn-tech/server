@@ -109,18 +109,19 @@ class HttpServerWorker(val server: HttpServer,
 
     fun getHandler(urlBytes: ByteArray): HttpRequestHandler? = handlerFinder.find(urlBytes)?.handler
 
-    private fun addURLHandler(url: String,
-                              handlerGenerator: () -> HttpRequestHandler) {
-        val urlBytes = url.toByteArray(Charsets.US_ASCII)
-        val handler = handlerGenerator()
+    private fun addUrlHandlers(newHandlers: Map<String, () -> HttpRequestHandler>) {
+        newHandlers.forEach { (url, handlerGenerator) ->
+            val urlBytes = url.toByteArray(Charsets.US_ASCII)
+            val handler = handlerGenerator()
+            handlers.put(Arrays.hashCode(urlBytes), URLHandlerMapping(urlBytes, handler))
+        }
 
-        handlers.put(Arrays.hashCode(urlBytes), URLHandlerMapping(urlBytes, handler))
         handlerFinder = FinderGenerator.generateFinder(handlers.values.toTypedArray())
     }
 
     override fun handleMessage(message: Any): Boolean {
-        if (message is RegisterURLHandlerMessage) {
-            addURLHandler(message.url, message.handlerGenerator)
+        if (message is RegisterUrlHandlersMessage) {
+            addUrlHandlers(message.handlers)
             return true
         }
 

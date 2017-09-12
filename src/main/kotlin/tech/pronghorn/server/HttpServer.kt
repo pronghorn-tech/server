@@ -17,6 +17,7 @@ class HttpServer(val config: HttpServerConfig) : CoroutineApplication<HttpServer
     }
     private val acceptLock by lazy { ReentrantLock() }
     private val distributionStrategy by lazy { RoundRobinConnectionDistributionStrategy(workers) }
+    private val preStartupHandlerRequests = mutableMapOf<String, () -> HttpRequestHandler>()
 
     constructor(address: InetSocketAddress) : this(HttpServerConfig(address))
 
@@ -24,6 +25,10 @@ class HttpServer(val config: HttpServerConfig) : CoroutineApplication<HttpServer
 
     override fun onStart() {
         logger.info { "Starting server with configuration: $config" }
+        if(preStartupHandlerRequests.isNotEmpty()){
+            registerUrlHandlerGenerators(preStartupHandlerRequests.toMap())
+            preStartupHandlerRequests.clear()
+        }
     }
 
     override fun onShutdown() {
@@ -42,12 +47,22 @@ class HttpServer(val config: HttpServerConfig) : CoroutineApplication<HttpServer
 
     fun getConnectionCount(): Int = workers.map(HttpServerWorker::getConnectionCount).sum()
 
+    fun registerUrlHandlerGenerators(handlers: Map<String, () -> HttpRequestHandler>) {
+        if(!isRunning){
+            handlers.forEach { (url, handlerGenerator) ->
+                preStartupHandlerRequests.put(url, handlerGenerator)
+            }
+        }
+        else {
+            workers.forEach { worker ->
+                worker.sendInterWorkerMessage(RegisterUrlHandlersMessage(handlers))
+            }
+        }
+    }
 
     fun registerUrlHandlerGenerator(url: String,
                                     handlerGenerator: () -> HttpRequestHandler) {
-        workers.forEach { worker ->
-            worker.sendInterWorkerMessage(RegisterURLHandlerMessage(url, handlerGenerator))
-        }
+        registerUrlHandlerGenerators(mapOf(url to handlerGenerator))
     }
 
     fun registerUrlHandler(url: String,
