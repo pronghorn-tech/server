@@ -29,11 +29,6 @@ object HttpServerConfigDefaultValues {
 
 /**
  * Configuration for a HttpServer.
- * The primary constructor takes a function that produces a FrameHandler, use this if the provided FrameHandler class
- * has mutable state that is not thread safe.
-
- * However, if a single shared FrameHandler is safe, use the secondary constructor.
- *
  * @param address : The address to bind to.
  * @param workerCount : The number of worker threads to utilize, should likely be the number of cores available.
  * @param serverName : The value to send in the Server response header if sendServerHeader is true
