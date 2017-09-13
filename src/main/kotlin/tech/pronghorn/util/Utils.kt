@@ -24,14 +24,3 @@ fun ByteBuffer.sliceToArray(start: Int,
     position(prePosition)
     return slice
 }
-
-fun runAllIgnoringExceptions(vararg blocks: () -> Unit) {
-    blocks.forEach { block ->
-        try {
-            block()
-        }
-        catch (ex: Exception) {
-            // no-op
-        }
-    }
-}
