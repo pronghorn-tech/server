@@ -1,3 +1,19 @@
+/*
+ * Copyright 2017 Pronghorn Technology LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package tech.pronghorn.server
 
 import tech.pronghorn.coroutines.core.CoroutineApplication
@@ -9,7 +25,8 @@ import java.nio.channels.Selector
 import java.nio.channels.ServerSocketChannel
 import java.util.concurrent.locks.ReentrantLock
 
-class HttpServer(val config: HttpServerConfig) : CoroutineApplication<HttpServerWorker>(config.workerCount) {
+class HttpServer(val config: HttpServerConfig) : CoroutineApplication<HttpServerWorker>() {
+    override val workerCount = config.workerCount
     private val serverSocket by lazy {
         val socket = ServerSocketChannel.open()
         socket.configureBlocking(false)
@@ -17,9 +34,13 @@ class HttpServer(val config: HttpServerConfig) : CoroutineApplication<HttpServer
     }
     private val acceptLock by lazy { ReentrantLock() }
     private val distributionStrategy by lazy { RoundRobinConnectionDistributionStrategy(workers) }
+
     private val preStartupHandlerRequests = mutableMapOf<String, () -> HttpRequestHandler>()
 
     constructor(address: InetSocketAddress) : this(HttpServerConfig(address))
+
+    constructor(host: String,
+                port: Int) : this(HttpServerConfig(InetSocketAddress(host, port)))
 
     override fun spawnWorker(): HttpServerWorker = HttpServerWorker(this, config)
 
