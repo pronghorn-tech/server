@@ -1,5 +1,5 @@
-# Pronghorn Http Server
-Pronghorn is a low-level, high performance http server written in [Kotlin](https://kotlinlang.org/). It utilizes the Pronghorn Coroutine Framework to fully utilize available system resources with minimal overhead. No external dependencies are required, however, functionality can be enhanced through optional [plugins](#plugins) which may contain external dependencies.
+# Pronghorn HTTP Server
+The Pronghorn HTTP Server is a low-level, high performance HTTP server written in [Kotlin](https://kotlinlang.org/). It utilizes the Pronghorn Coroutine Framework to fully utilize available system resources with minimal overhead. No external dependencies are required, however, functionality can be enhanced through optional [plugins](#plugins) which may contain external dependencies.
 
 ## Use Cases
 Pronghorn is best suited for applications where high throughput and/or low latency with minimal cpu overhead are critical requirements.
