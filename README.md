@@ -1,5 +1,5 @@
 # Pronghorn Http Server
-Pronghorn is a low-level, high performance http server written in [Kotlin](https://kotlinlang.org/). It utilizes the Pronghorn Coroutine Framework to fully utilize available system resources with minimal overhead. No external dependencies are required, however, functionality can be enhanced through optional [plugins](#plugins) which may contain external dependencies.
+Pronghorn is a low-level, high performance http server written in [Kotlin](https://kotlinlang.org/). It utilizes the Pronghorn Coroutine Framework to fully utilize available system resources with minimal overhead. No external dependencies are required, however, functionality can be enhanced through optional [plugins](#Plugins) which may contain external dependencies.
 
 ## Use Cases
 Pronghorn is best suited for applications where high throughput and/or low latency with minimal cpu overhead are critical requirements.
@@ -40,7 +40,7 @@ val server = HttpServer(config)
 * __maxRequestSize__ - The maximum acceptable size of a single http request _(default: 1 MiB)_
 * __useDirectByteBuffers__ - Whether socket read/write buffers should be direct ByteBuffers _(default: true)_
 
-# Plugins<a name="plugins"></a>
+# Plugins
 Pronghorn ships with three optional plugins
 
 ### SLF4J Logging Plugin
