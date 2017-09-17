@@ -1,6 +1,6 @@
 buildscript {
     ext {
-        kotlin_version = '1.1.4'
+        kotlinVersion = '1.1.4'
     }
 
     repositories {
@@ -8,7 +8,7 @@ buildscript {
     }
 
     dependencies {
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
         classpath 'org.junit.platform:junit-platform-gradle-plugin:1.0.0'
     }
 }
@@ -18,10 +18,30 @@ version '0.1.0'
 
 apply plugin: 'kotlin'
 apply plugin: 'org.junit.platform.gradle.plugin'
+apply plugin: 'maven'
 
-repositories {
-    mavenCentral()
-    mavenLocal()
+archivesBaseName = 'server'
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            pom {
+                artifactId = 'server'
+            }
+
+            pom.project {
+                name 'Pronghorn HTTP Server'
+                packaging 'jar'
+                description 'A low-level, high performance HTTP server.'
+                url 'https://pronghorn.tech'
+                scm {
+                    url 'https://github.com/pronghorn-tech/server.git'
+                    connection 'scm:git@github.com:pronghorn-tech/server.git'
+                    developerConnection 'scm:git@github.com:pronghorn-tech/server.git'
+                }
+            }
+        }
+    }
 }
 
 kotlin {
@@ -30,9 +50,14 @@ kotlin {
     }
 }
 
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-    compile "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
+    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
+    compile "org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion"
     compile "tech.pronghorn:coroutines:$version"
 
     testRuntime 'ch.qos.logback:logback-classic:1.2.3'
