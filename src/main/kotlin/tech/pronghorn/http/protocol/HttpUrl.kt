@@ -98,7 +98,7 @@ class ByteArrayHttpUrl(private val path: ByteArray?,
         if (path == null) {
             return "/"
         }
-        val pathString = path.toString()
+        val pathString = String(path, Charsets.US_ASCII)
         if (!pathContainsPercentEncoding) {
             return pathString
         }
