@@ -24,5 +24,5 @@ abstract class DirectHttpRequestHandler : NonSuspendableHttpRequestHandler() {
         return handleDirect(exchange)
     }
 
-    internal abstract fun handleDirect(exchange: HttpExchange): HttpResponse
+    abstract fun handleDirect(exchange: HttpExchange): HttpResponse
 }
