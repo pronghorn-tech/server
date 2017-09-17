@@ -24,6 +24,20 @@ data class QueryParam(val name: ByteArray,
                       val value: ByteArray) {
     constructor(name: String,
                 value: String) : this(name.toByteArray(Charsets.US_ASCII), value.toByteArray(Charsets.US_ASCII))
+
+    override fun equals(other: Any?): Boolean {
+        return when (other) {
+            this === other -> true
+            is QueryParam -> {
+                return Arrays.equals(name, other.name) && Arrays.equals(value, other.name)
+            }
+            else -> false
+        }
+    }
+
+    override fun hashCode(): Int {
+        return Objects.hash(name, value)
+    }
 }
 
 sealed class HttpUrlParseResult
@@ -123,8 +137,8 @@ class ByteArrayHttpUrl(private val path: ByteArray?,
             }
             else if(byte == ampersandByte){
                 if(valueStart != -1){
-                    val name = Arrays.copyOfRange(queryParams, nameStart, valueStart - nameStart - 1)
-                    val value = Arrays.copyOfRange(queryParams, valueStart, x - valueStart)
+                    val name = Arrays.copyOfRange(queryParams, nameStart, valueStart - 1)
+                    val value = Arrays.copyOfRange(queryParams, valueStart, x)
                     params.add(QueryParam(name, value))
                 }
                 nameStart = x + 1
@@ -134,8 +148,8 @@ class ByteArrayHttpUrl(private val path: ByteArray?,
         }
 
         if(valueStart != -1){
-            val name = Arrays.copyOfRange(queryParams, nameStart, valueStart - nameStart - 1)
-            val value = Arrays.copyOfRange(queryParams, valueStart, x - valueStart)
+            val name = Arrays.copyOfRange(queryParams, nameStart, valueStart - 1)
+            val value = Arrays.copyOfRange(queryParams, valueStart, x)
             params.add(QueryParam(name, value))
         }
 

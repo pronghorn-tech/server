@@ -191,6 +191,19 @@ class HttpUrlParseTests : PronghornTest() {
         test.execute()
     }
 
+    @Test
+    fun urlParseTest12() {
+        val test = ParseTest(
+                "/foo?bar=5&baz=potato&buzz=bingo",
+                ValueHttpUrl(path = "/foo", queryParams = listOf(
+                        QueryParam("bar", "5"),
+                        QueryParam("baz", "potato"),
+                        QueryParam("buzz", "bingo")
+                ))
+        )
+        test.execute()
+    }
+
     // TODO: punycode test
 
     // TODO: percent encoding test
