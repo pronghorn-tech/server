@@ -21,15 +21,13 @@ import tech.pronghorn.server.HttpServerConnection
 import tech.pronghorn.server.HttpServerWorker
 import java.nio.channels.*
 
-class ServerConnectionCreationService(override val worker: HttpServerWorker,
-                                      private val selector: Selector) : MultiWriterExternalQueueService<SocketChannel>() {
+class ServerConnectionCreationService(override val worker: HttpServerWorker) : MultiWriterExternalQueueService<SocketChannel>() {
     @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
     suspend override fun process(socket: SocketChannel) {
         socket.configureBlocking(false)
-        val selectionKey = socket.register(selector, SelectionKey.OP_READ)
-        val connection = HttpServerConnection(worker, socket, selectionKey)
+        socket.socket().tcpNoDelay = true
+        val connection = HttpServerConnection(worker, socket)
         worker.addConnection(connection)
-        selectionKey.attach(connection)
     }
 }
 

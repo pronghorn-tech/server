@@ -21,6 +21,7 @@ import tech.pronghorn.http.protocol.parseHttpRequest
 import tech.pronghorn.plugins.internalQueue.InternalQueuePlugin
 import tech.pronghorn.server.bufferpools.ManagedByteBuffer
 import tech.pronghorn.server.handlers.*
+import tech.pronghorn.server.selectionhandlers.HttpSocketHandler
 import tech.pronghorn.server.services.HttpRequestHandlerService
 import tech.pronghorn.server.services.ResponseWriterService
 import tech.pronghorn.util.runAllIgnoringExceptions
@@ -32,12 +33,12 @@ import java.nio.channels.*
 private val genericNotFoundHandler = StaticHttpRequestHandler(HttpResponses.NotFound())
 
 open class HttpServerConnection(val worker: HttpServerWorker,
-                                val socket: SocketChannel,
-                                val selectionKey: SelectionKey) {
+                                val socket: SocketChannel) {
     private var isClosed = false
     private val maxPipelinedRequests = worker.server.config.maxPipelinedRequests
     private val reusableBufferSize = worker.server.config.reusableBufferSize
     private val maxRequestSize = worker.server.config.maxRequestSize
+    private val selectionKey = worker.registerSelectionKeyHandler(socket, HttpSocketHandler(this), SelectionKey.OP_READ)
 
     private val responsesQueue = InternalQueuePlugin.get<HttpResponse>(maxPipelinedRequests)
     private val requestsQueue = InternalQueuePlugin.get<HttpExchange>(maxPipelinedRequests)
@@ -55,11 +56,6 @@ open class HttpServerConnection(val worker: HttpServerWorker,
 
     private val requestsReadyWriter by lazy(LazyThreadSafetyMode.NONE) {
         worker.requestInternalWriter<HttpServerConnection, HttpRequestHandlerService>()
-    }
-
-    init {
-        selectionKey.attach(this)
-        selectionKey.interestOps(SelectionKey.OP_READ)
     }
 
     private fun releaseReadBuffer() {

@@ -45,8 +45,8 @@ class HttpServerWorker(val server: HttpServer,
                        private val config: HttpServerConfig) : CoroutineWorker() {
     private val connections = ConcurrentSetPlugin.get<HttpServerConnection>()
     private val connectionReadService = ConnectionReadService(this)
-    private val connectionCreationService = ServerConnectionCreationService(this, selector)
-    private val socketManagerService = server.getSocketManagerService(this, selector)
+    private val connectionCreationService = ServerConnectionCreationService(this)
+    private val socketManagerService = server.getSocketManagerService(this)
     private val httpRequestHandlerService = HttpRequestHandlerService(this)
     private val responseWriterService = ResponseWriterService(this)
     private val handlers = HashMap<Int, URLHandlerMapping>()
@@ -54,10 +54,11 @@ class HttpServerWorker(val server: HttpServer,
     private val commonHeaderCache = calculateCommonHeaderCache()
     private var latestDate = System.currentTimeMillis() / 1000
     private var handlerFinder: ByteBackedFinder<URLHandlerMapping> = FinderGenerator.generateFinder(handlers.values.toTypedArray())
-    val commonHeaderSize = commonHeaderCache.size
-
-    val connectionBufferPool = ReusableBufferPoolManager(config.reusableBufferSize, config.useDirectByteBuffers)
-    val oneUseByteBufferAllocator = OneUseByteBufferAllocator(config.useDirectByteBuffers)
+    internal val commonHeaderSize = commonHeaderCache.size
+    internal val connectionBufferPool = ReusableBufferPoolManager(config.reusableBufferSize, config.useDirectByteBuffers)
+    internal val oneUseByteBufferAllocator = OneUseByteBufferAllocator(config.useDirectByteBuffers)
+    internal val connectionReadServiceQueueWriter = connectionReadService.getQueueWriter()
+    internal val responseWriterServiceQueueWriter = responseWriterService.getQueueWriter()
 
     override val services: List<Service> = listOf(
             connectionReadService,
@@ -66,9 +67,6 @@ class HttpServerWorker(val server: HttpServer,
             httpRequestHandlerService,
             responseWriterService
     )
-
-    private val connectionReadServiceQueueWriter by lazy(LazyThreadSafetyMode.NONE) { connectionReadService.getQueueWriter() }
-    private val responseWriterServiceQueueWriter by lazy(LazyThreadSafetyMode.NONE) { responseWriterService.getQueueWriter() }
 
     fun getConnectionCount(): Int = connections.size
 
@@ -142,38 +140,5 @@ class HttpServerWorker(val server: HttpServer,
         }
 
         return false
-    }
-
-    override fun processKey(key: SelectionKey) {
-        if (key == socketManagerService.acceptSelectionKey && key.isAcceptable) {
-            socketManagerService.wake()
-        }
-        else if (key.isReadable) {
-            val attachment = key.attachment()
-            if (attachment is HttpServerConnection) {
-                if (!attachment.isReadQueued) {
-                    if (!connectionReadServiceQueueWriter.offer(attachment)) {
-                        logger.warn { "Connection read service is overloaded!" }
-                        return
-                    }
-                    attachment.isReadQueued = true
-                }
-            }
-        }
-        else if (key.isWritable) {
-            val attachment = key.attachment()
-            if (attachment is HttpServerConnection) {
-                if (!attachment.isWriteQueued) {
-                    if (!responseWriterServiceQueueWriter.offer(attachment)) {
-                        logger.warn { "Connection write service is overloaded!" }
-                        return
-                    }
-                    attachment.isWriteQueued = true
-                }
-            }
-        }
-        else {
-            throw Exception("Unexpected readyOps for attachment : ${key.readyOps()} ${key.attachment()}")
-        }
     }
 }

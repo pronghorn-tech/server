@@ -22,18 +22,12 @@ import tech.pronghorn.server.handlers.HttpRequestHandler
 import tech.pronghorn.server.services.*
 import java.net.InetSocketAddress
 import java.nio.channels.Selector
-import java.nio.channels.ServerSocketChannel
-import java.util.concurrent.locks.ReentrantLock
 
 class HttpServer(val config: HttpServerConfig) : CoroutineApplication<HttpServerWorker>() {
     override val workerCount = config.workerCount
-    private val serverSocket by lazy {
-        val socket = ServerSocketChannel.open()
-        socket.configureBlocking(false)
-        socket
+    private val singleSocketManager by lazy {
+        SingleSocketManager(config.address, config.listenBacklog, RoundRobinConnectionDistributionStrategy(workers))
     }
-    private val acceptLock by lazy { ReentrantLock() }
-    private val distributionStrategy by lazy { RoundRobinConnectionDistributionStrategy(workers) }
 
     private val preStartupHandlerRequests = mutableMapOf<String, () -> HttpRequestHandler>()
 
@@ -56,13 +50,12 @@ class HttpServer(val config: HttpServerConfig) : CoroutineApplication<HttpServer
         logger.info { "Shutting down server at ${config.address}." }
     }
 
-    fun getSocketManagerService(worker: HttpServerWorker,
-                                selector: Selector): SocketManagerService {
+    fun getSocketManagerService(worker: HttpServerWorker): SocketManagerService {
         if (config.reusePort) {
-            return MultiSocketManagerService(worker, selector)
+            return MultiSocketManagerService(worker)
         }
         else {
-            return SingleSocketManagerService(worker, selector, serverSocket, acceptLock, distributionStrategy)
+            return SingleSocketManagerService(worker, singleSocketManager)
         }
     }
 
