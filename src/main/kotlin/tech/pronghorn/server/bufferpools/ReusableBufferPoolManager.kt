@@ -30,6 +30,5 @@ class ReusableBufferPoolManager(private val bufferSize: Int,
         pool.offer(buffer)
     }
 
-    private val pool = InternalQueuePlugin.get<ReusableByteBuffer>(1024)
+    private val pool = InternalQueuePlugin.getUnbounded<ReusableByteBuffer>()
 }
-

@@ -29,7 +29,6 @@ import tech.pronghorn.server.services.*
 import tech.pronghorn.util.finder.*
 import tech.pronghorn.util.runAllIgnoringExceptions
 import java.nio.ByteBuffer
-import java.nio.channels.SelectionKey
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -46,7 +45,6 @@ class HttpServerWorker(val server: HttpServer,
     private val connections = ConcurrentSetPlugin.get<HttpServerConnection>()
     private val connectionReadService = ConnectionReadService(this)
     private val connectionCreationService = ServerConnectionCreationService(this)
-    private val socketManagerService = server.getSocketManagerService(this)
     private val httpRequestHandlerService = HttpRequestHandlerService(this)
     private val responseWriterService = ResponseWriterService(this)
     private val handlers = HashMap<Int, URLHandlerMapping>()
@@ -59,16 +57,14 @@ class HttpServerWorker(val server: HttpServer,
     internal val oneUseByteBufferAllocator = OneUseByteBufferAllocator(config.useDirectByteBuffers)
     internal val connectionReadServiceQueueWriter = connectionReadService.getQueueWriter()
     internal val responseWriterServiceQueueWriter = responseWriterService.getQueueWriter()
+    internal val httpRequestHandlerServiceQueueWriter = httpRequestHandlerService.getQueueWriter()
 
     override val services: List<Service> = listOf(
             connectionReadService,
             connectionCreationService,
-            socketManagerService,
             httpRequestHandlerService,
             responseWriterService
     )
-
-    fun getConnectionCount(): Int = connections.size
 
     fun addConnection(connection: HttpServerConnection) {
         connections.add(connection)
@@ -123,10 +119,10 @@ class HttpServerWorker(val server: HttpServer,
 
     fun getHandler(urlBytes: ByteArray): HttpRequestHandler? = handlerFinder.find(urlBytes)?.handler
 
-    private fun addUrlHandlers(newHandlers: Map<String, () -> HttpRequestHandler>) {
+    private fun addUrlHandlers(newHandlers: Map<String, (HttpServerWorker) -> HttpRequestHandler>) {
         newHandlers.forEach { (url, handlerGenerator) ->
             val urlBytes = url.toByteArray(Charsets.US_ASCII)
-            val handler = handlerGenerator()
+            val handler = handlerGenerator(this)
             handlers.put(Arrays.hashCode(urlBytes), URLHandlerMapping(urlBytes, handler))
         }
 

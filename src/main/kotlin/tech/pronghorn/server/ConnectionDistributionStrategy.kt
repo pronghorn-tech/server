@@ -16,14 +16,32 @@
 
 package tech.pronghorn.server
 
-interface ConnectionDistributionStrategy {
-    val workers: Set<HttpServerWorker>
-    fun getWorker(): HttpServerWorker
+import tech.pronghorn.coroutines.awaitable.QueueWriter
+import tech.pronghorn.server.services.ServerConnectionCreationService
+import java.nio.channels.SocketChannel
+
+abstract class ConnectionDistributionStrategy {
+    abstract val workers: Set<HttpServerWorker>
+
+    private val writers = LinkedHashMap<HttpServerWorker, QueueWriter<SocketChannel>>()
+
+    private fun getWriter(worker: HttpServerWorker): QueueWriter<SocketChannel> {
+        return worker.getServiceQueueWriter<SocketChannel, ServerConnectionCreationService>()
+                ?: throw IllegalStateException("ServerConnectionCreationService not available")
+    }
+
+    protected abstract fun getWorker(): HttpServerWorker
+
+    fun distributeConnection(socket: SocketChannel): Boolean {
+        val worker = getWorker()
+        val workerWriter = writers.getOrPut(worker, { getWriter(worker) })
+        return workerWriter.offer(socket)
+    }
 }
 
-class RoundRobinConnectionDistributionStrategy(override val workers: Set<HttpServerWorker>) : ConnectionDistributionStrategy {
+class RoundRobinConnectionDistributionStrategy(override val workers: Set<HttpServerWorker>) : ConnectionDistributionStrategy() {
     private var lastWorkerID = 0
-    val workerCount by lazy { workers.size }
+    val workerCount = workers.size
 
     override fun getWorker(): HttpServerWorker {
         return workers.elementAt(lastWorkerID++ % workerCount)

@@ -40,8 +40,8 @@ open class HttpServerConnection(val worker: HttpServerWorker,
     private val maxRequestSize = worker.server.config.maxRequestSize
     private val selectionKey = worker.registerSelectionKeyHandler(socket, HttpSocketHandler(this), SelectionKey.OP_READ)
 
-    private val responsesQueue = InternalQueuePlugin.get<HttpResponse>(maxPipelinedRequests)
-    private val requestsQueue = InternalQueuePlugin.get<HttpExchange>(maxPipelinedRequests)
+    private val responsesQueue = InternalQueuePlugin.getBounded<HttpResponse>(maxPipelinedRequests)
+    private val requestsQueue = InternalQueuePlugin.getBounded<HttpExchange>(maxPipelinedRequests)
 
     var isReadQueued = false
     var isWriteQueued = false
@@ -50,13 +50,8 @@ open class HttpServerConnection(val worker: HttpServerWorker,
     private var readBuffer: ManagedByteBuffer? = null
     private var writeBuffer: ManagedByteBuffer? = null
 
-    private val connectionWriter by lazy(LazyThreadSafetyMode.NONE) {
-        worker.requestInternalWriter<HttpServerConnection, ResponseWriterService>()
-    }
-
-    private val requestsReadyWriter by lazy(LazyThreadSafetyMode.NONE) {
-        worker.requestInternalWriter<HttpServerConnection, HttpRequestHandlerService>()
-    }
+    private val connectionWriter = worker.responseWriterServiceQueueWriter
+    private val requestsReadyWriter = worker.httpRequestHandlerServiceQueueWriter
 
     private fun releaseReadBuffer() {
         readBuffer?.release()

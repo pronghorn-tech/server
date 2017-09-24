@@ -16,7 +16,6 @@
 
 package tech.pronghorn.server.services
 
-import tech.pronghorn.coroutines.awaitable.QueueWriter
 import tech.pronghorn.coroutines.service.InternalSleepableService
 import tech.pronghorn.server.*
 import tech.pronghorn.server.selectionhandlers.AcceptHandler
@@ -71,7 +70,6 @@ class SingleSocketManagerService(override val worker: HttpServerWorker,
                                  val manager: SingleSocketManager) : SocketManagerService() {
     override val serverSocket: ServerSocketChannel = manager.serverSocket
     private val config = worker.server.config
-    private val writers = LinkedHashMap<HttpServerWorker, QueueWriter<SocketChannel>>()
 
     override fun onStart() {
         super.onStart()
@@ -93,9 +91,7 @@ class SingleSocketManagerService(override val worker: HttpServerWorker,
                     acceptedCount += 1
                     var handled = false
                     while (!handled) {
-                        val worker = manager.distributionStrategy.getWorker()
-                        val workerWriter = writers.getOrPut(worker, { worker.requestMultiExternalWriter<SocketChannel, ServerConnectionCreationService>() })
-                        handled = workerWriter.offer(acceptedSocket)
+                        handled = manager.distributionStrategy.distributeConnection(acceptedSocket)
                     }
                     if (acceptedCount >= config.acceptGrouping) {
                         break

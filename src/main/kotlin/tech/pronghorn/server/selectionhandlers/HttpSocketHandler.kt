@@ -21,10 +21,9 @@ import tech.pronghorn.plugins.logging.LoggingPlugin
 import tech.pronghorn.server.HttpServerConnection
 
 class HttpSocketHandler(connection: HttpServerConnection): ReadWriteSelectionKeyHandler<HttpServerConnection>(connection){
+    private val logger by lazy(LazyThreadSafetyMode.NONE) { LoggingPlugin.get(javaClass) }
     private val connectionReadServiceQueueWriter = connection.worker.connectionReadServiceQueueWriter
     private val responseWriterServiceQueueWriter = connection.worker.responseWriterServiceQueueWriter
-    // TODO: Shouldn't be spawning one of these per connection probably?
-    private val logger by lazy(LazyThreadSafetyMode.NONE) { LoggingPlugin.get(javaClass) }
 
     override fun handleRead() {
         if (!attachment.isReadQueued) {

@@ -17,65 +17,54 @@
 package tech.pronghorn.server
 
 import tech.pronghorn.coroutines.core.CoroutineApplication
+import tech.pronghorn.coroutines.core.CoroutineWorker
+import tech.pronghorn.coroutines.service.Service
+import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.config.HttpServerConfig
 import tech.pronghorn.server.handlers.HttpRequestHandler
 import tech.pronghorn.server.services.*
 import java.net.InetSocketAddress
-import java.nio.channels.Selector
 
 class HttpServer(val config: HttpServerConfig) : CoroutineApplication<HttpServerWorker>() {
-    override val workerCount = config.workerCount
-    private val singleSocketManager by lazy {
-        SingleSocketManager(config.address, config.listenBacklog, RoundRobinConnectionDistributionStrategy(workers))
-    }
+    override val workers = spawnWorkers(config.workerCount)
 
-    private val preStartupHandlerRequests = mutableMapOf<String, () -> HttpRequestHandler>()
+    private fun spawnWorkers(workerCount: Int): Set<HttpServerWorker> {
+        val workerSet = ConcurrentSetPlugin.get<HttpServerWorker>()
+        for (x in 1..workerCount) {
+            workerSet.add(HttpServerWorker(this, config))
+        }
+        return workerSet
+    }
 
     constructor(address: InetSocketAddress) : this(HttpServerConfig(address))
 
     constructor(host: String,
                 port: Int) : this(HttpServerConfig(InetSocketAddress(host, port)))
 
-    override fun spawnWorker(): HttpServerWorker = HttpServerWorker(this, config)
-
     override fun onStart() {
-        logger.info { "Starting server with configuration: $config" }
-        if(preStartupHandlerRequests.isNotEmpty()){
-            registerUrlHandlerGenerators(preStartupHandlerRequests.toMap())
-            preStartupHandlerRequests.clear()
+        if(config.reusePort){
+            addService { worker -> MultiSocketManagerService(worker) }
         }
+        else {
+            val socketManager = SingleSocketManager(config.address, config.listenBacklog, RoundRobinConnectionDistributionStrategy(workers))
+            addService { worker -> SingleSocketManagerService(worker, socketManager) }
+        }
+
+        logger.info { "Starting server with configuration: $config" }
     }
 
     override fun onShutdown() {
         logger.info { "Shutting down server at ${config.address}." }
     }
 
-    fun getSocketManagerService(worker: HttpServerWorker): SocketManagerService {
-        if (config.reusePort) {
-            return MultiSocketManagerService(worker)
-        }
-        else {
-            return SingleSocketManagerService(worker, singleSocketManager)
-        }
-    }
-
-    fun getConnectionCount(): Int = workers.map(HttpServerWorker::getConnectionCount).sum()
-
-    fun registerUrlHandlerGenerators(handlers: Map<String, () -> HttpRequestHandler>) {
-        if(!isRunning){
-            handlers.forEach { (url, handlerGenerator) ->
-                preStartupHandlerRequests.put(url, handlerGenerator)
-            }
-        }
-        else {
-            workers.forEach { worker ->
-                worker.sendInterWorkerMessage(RegisterUrlHandlersMessage(handlers))
-            }
+    fun registerUrlHandlerGenerators(handlers: Map<String, (HttpServerWorker) -> HttpRequestHandler>) {
+        workers.forEach { worker ->
+            worker.sendInterWorkerMessage(RegisterUrlHandlersMessage(handlers))
         }
     }
 
     fun registerUrlHandlerGenerator(url: String,
-                                    handlerGenerator: () -> HttpRequestHandler) {
+                                    handlerGenerator: (HttpServerWorker) -> HttpRequestHandler) {
         registerUrlHandlerGenerators(mapOf(url to handlerGenerator))
     }
 
