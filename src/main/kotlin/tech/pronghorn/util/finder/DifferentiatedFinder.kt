@@ -43,7 +43,7 @@ internal class DifferentiatedFinder<T : ByteBacked>(toLookup: Array<T>) : ByteBa
             val atThisLength = toLookup.filter { backed -> backed.bytes.size == x + 1 }.toTypedArray<ByteBacked>()
             if (atThisLength.isNotEmpty()) {
                 var mostDifferentiatedByte = 0
-                var mostDuplicateCount = Integer.MAX_VALUE
+                var mostDuplicateCount = Int.MAX_VALUE
                 val counts = IntArray(256)
                 var byteIndex = 0
 
