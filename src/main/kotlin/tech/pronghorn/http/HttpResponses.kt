@@ -32,7 +32,8 @@ object HttpResponses {
     private data class ContentTypeCharsetKey(val contentType: ContentType,
                                              val charset: Charset)
 
-    class OK(override val body: ByteArray) : HttpResponse(HttpResponseCode.OK) {
+    // 200 OK
+    open class OK(override final val body: ByteArray) : HttpResponse(HttpResponseCode.OK) {
         override val headers = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
                 StandardHttpResponseHeaders.ContentLength to HttpResponseHeaderValue.valueOf(body.size)
         )
@@ -61,12 +62,44 @@ object HttpResponses {
         }
     }
 
+    // 204 NoContent
     class NoContent : HttpResponse(HttpResponseCode.NoContent) {
         override val body = emptyBytes
         override val headers = noContentHeaders
     }
 
-    class NotFound(override val body: ByteArray = emptyBytes) : HttpResponse(HttpResponseCode.NotFound) {
+    // 301 Moved Permanently
+    class MovedPermanently(val locationBytes: ByteArray) : HttpResponse(HttpResponseCode.MovedPermanently) {
+        override final val body: ByteArray = emptyBytes
+        override val headers = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
+                StandardHttpResponseHeaders.Location to HttpResponseHeaderValue.valueOf(locationBytes)
+        )
+
+        constructor(location: String) : this(location.toByteArray(Charsets.US_ASCII))
+    }
+
+    // 302 Found
+    class Found(val locationBytes: ByteArray) : HttpResponse(HttpResponseCode.Found) {
+        override final val body: ByteArray = emptyBytes
+        override val headers = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
+                StandardHttpResponseHeaders.Location to HttpResponseHeaderValue.valueOf(locationBytes)
+        )
+
+        constructor(location: String) : this(location.toByteArray(Charsets.US_ASCII))
+    }
+
+    // 307 Temporary Redirect
+    class TemporaryRedirect(val locationBytes: ByteArray) : HttpResponse(HttpResponseCode.TemporaryRedirect) {
+        override final val body: ByteArray = emptyBytes
+        override val headers = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
+                StandardHttpResponseHeaders.Location to HttpResponseHeaderValue.valueOf(locationBytes)
+        )
+
+        constructor(location: String) : this(location.toByteArray(Charsets.US_ASCII))
+    }
+
+    // 404 Not Found
+    open class NotFound(override final val body: ByteArray = emptyBytes) : HttpResponse(HttpResponseCode.NotFound) {
         override val headers = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
                 StandardHttpResponseHeaders.ContentLength to HttpResponseHeaderValue.valueOf(body.size)
         )
@@ -75,5 +108,16 @@ object HttpResponses {
                     contentType: ContentType) : this(body) {
             addHeader(StandardHttpResponseHeaders.ContentType, contentType.bytes)
         }
+    }
+
+    // 500 InternalServerError
+    open class InternalServerError(override final val body: ByteArray = emptyBytes) : HttpResponse(HttpResponseCode.InternalServerError) {
+        override val headers = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
+                StandardHttpResponseHeaders.ContentLength to HttpResponseHeaderValue.valueOf(body.size)
+        )
+
+        constructor(message: String) : this(message.toByteArray(Charsets.US_ASCII))
+
+        constructor(ex: Throwable) : this(ex.message ?: "Unknown")
     }
 }
