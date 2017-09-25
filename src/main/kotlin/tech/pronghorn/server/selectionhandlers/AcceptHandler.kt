@@ -19,8 +19,8 @@ package tech.pronghorn.server.selectionhandlers
 import tech.pronghorn.coroutines.core.AcceptSelectionKeyHandler
 import tech.pronghorn.server.services.SocketManagerService
 
-class AcceptHandler(service: SocketManagerService): AcceptSelectionKeyHandler<SocketManagerService>(service){
+class AcceptHandler(private val service: SocketManagerService): AcceptSelectionKeyHandler<SocketManagerService> {
     override fun handleAccept() {
-        attachment.wake()
+        service.wake()
     }
 }

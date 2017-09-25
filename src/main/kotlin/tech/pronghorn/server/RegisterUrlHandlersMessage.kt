@@ -16,6 +16,6 @@
 
 package tech.pronghorn.server
 
-import tech.pronghorn.server.handlers.HttpRequestHandler
+import tech.pronghorn.server.requesthandlers.HttpRequestHandler
 
 data class RegisterUrlHandlersMessage(val handlers: Map<String, (HttpServerWorker) -> HttpRequestHandler>)

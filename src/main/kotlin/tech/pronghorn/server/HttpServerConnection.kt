@@ -21,10 +21,8 @@ import tech.pronghorn.http.*
 import tech.pronghorn.http.protocol.parseHttpRequest
 import tech.pronghorn.plugins.internalQueue.InternalQueuePlugin
 import tech.pronghorn.server.bufferpools.ManagedByteBuffer
-import tech.pronghorn.server.handlers.*
+import tech.pronghorn.server.requesthandlers.*
 import tech.pronghorn.server.selectionhandlers.HttpSocketHandler
-import tech.pronghorn.server.services.HttpRequestHandlerService
-import tech.pronghorn.server.services.ResponseWriterService
 import tech.pronghorn.util.runAllIgnoringExceptions
 import tech.pronghorn.util.write
 import java.io.IOException

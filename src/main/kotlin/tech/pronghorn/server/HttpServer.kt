@@ -17,11 +17,9 @@
 package tech.pronghorn.server
 
 import tech.pronghorn.coroutines.core.CoroutineApplication
-import tech.pronghorn.coroutines.core.CoroutineWorker
-import tech.pronghorn.coroutines.service.Service
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.config.HttpServerConfig
-import tech.pronghorn.server.handlers.HttpRequestHandler
+import tech.pronghorn.server.requesthandlers.HttpRequestHandler
 import tech.pronghorn.server.services.*
 import java.net.InetSocketAddress
 

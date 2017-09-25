@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-package tech.pronghorn.server.handlers
+package tech.pronghorn.server.requesthandlers
 
 import tech.pronghorn.http.HttpExchange
 import tech.pronghorn.http.HttpResponse
+import tech.pronghorn.plugins.logging.LoggingPlugin
 
-sealed class HttpRequestHandler
+sealed class HttpRequestHandler {
+    protected val logger = LoggingPlugin.get(javaClass)
+}
 
 abstract class SuspendableHttpRequestHandler: HttpRequestHandler() {
-    internal abstract suspend fun handle(exchange: HttpExchange): HttpResponse
+    abstract suspend fun handle(exchange: HttpExchange): HttpResponse
 }
 
 abstract class NonSuspendableHttpRequestHandler: HttpRequestHandler() {

@@ -24,7 +24,7 @@ import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
 import tech.pronghorn.server.bufferpools.OneUseByteBufferAllocator
 import tech.pronghorn.server.bufferpools.ReusableBufferPoolManager
 import tech.pronghorn.server.config.HttpServerConfig
-import tech.pronghorn.server.handlers.HttpRequestHandler
+import tech.pronghorn.server.requesthandlers.HttpRequestHandler
 import tech.pronghorn.server.services.*
 import tech.pronghorn.util.finder.*
 import tech.pronghorn.util.runAllIgnoringExceptions

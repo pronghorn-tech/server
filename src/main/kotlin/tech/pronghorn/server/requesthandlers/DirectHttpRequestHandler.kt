@@ -14,11 +14,15 @@
  * limitations under the License.
  */
 
-package tech.pronghorn.server.handlers
+package tech.pronghorn.server.requesthandlers
 
 import tech.pronghorn.http.HttpExchange
 import tech.pronghorn.http.HttpResponse
 
-class StaticHttpRequestHandler(val response: HttpResponse) : NonSuspendableHttpRequestHandler() {
-    override fun handle(exchange: HttpExchange) = response
+abstract class DirectHttpRequestHandler : NonSuspendableHttpRequestHandler() {
+    override fun handle(exchange: HttpExchange): HttpResponse {
+        return handleDirect(exchange)
+    }
+
+    abstract fun handleDirect(exchange: HttpExchange): HttpResponse
 }

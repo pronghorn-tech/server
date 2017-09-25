@@ -20,28 +20,28 @@ import tech.pronghorn.coroutines.core.ReadWriteSelectionKeyHandler
 import tech.pronghorn.plugins.logging.LoggingPlugin
 import tech.pronghorn.server.HttpServerConnection
 
-class HttpSocketHandler(connection: HttpServerConnection): ReadWriteSelectionKeyHandler<HttpServerConnection>(connection){
+class HttpSocketHandler(private val connection: HttpServerConnection): ReadWriteSelectionKeyHandler<HttpServerConnection> {
     private val logger by lazy(LazyThreadSafetyMode.NONE) { LoggingPlugin.get(javaClass) }
     private val connectionReadServiceQueueWriter = connection.worker.connectionReadServiceQueueWriter
     private val responseWriterServiceQueueWriter = connection.worker.responseWriterServiceQueueWriter
 
     override fun handleRead() {
-        if (!attachment.isReadQueued) {
-            if (!connectionReadServiceQueueWriter.offer(attachment)) {
+        if (!connection.isReadQueued) {
+            if (!connectionReadServiceQueueWriter.offer(connection)) {
                 logger.warn { "Connection read service is overloaded!" }
                 return
             }
-            attachment.isReadQueued = true
+            connection.isReadQueued = true
         }
     }
 
     override fun handleWrite() {
-        if (!attachment.isWriteQueued) {
-            if (!responseWriterServiceQueueWriter.offer(attachment)) {
+        if (!connection.isWriteQueued) {
+            if (!responseWriterServiceQueueWriter.offer(connection)) {
                 logger.warn { "Connection write service is overloaded!" }
                 return
             }
-            attachment.isWriteQueued = true
+            connection.isWriteQueued = true
         }
     }
 }
