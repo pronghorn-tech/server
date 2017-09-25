@@ -29,3 +29,5 @@ const val questionByte: Byte = 0x3F
 const val spaceByte: Byte = 0x20
 const val carriageReturnByte: Byte = 0xD
 const val newLineByte: Byte = 0xA
+const val zeroByte: Byte = 0x48
+const val oneByte: Byte = 0x49

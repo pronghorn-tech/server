@@ -16,6 +16,7 @@
 
 package tech.pronghorn.server
 
+import tech.pronghorn.coroutines.core.launchCoroutine
 import tech.pronghorn.http.*
 import tech.pronghorn.http.protocol.parseHttpRequest
 import tech.pronghorn.plugins.internalQueue.InternalQueuePlugin
@@ -79,7 +80,7 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         releaseWriteBuffer()
     }
 
-    open fun close(reason: String? = null) {
+    fun close(reason: String? = null) {
         isReadQueued = false
         isClosed = true
         selectionKey.cancel()
@@ -108,11 +109,30 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         while (exchange != null) {
             val handler = worker.getHandler(exchange.requestUrl.getPathBytes()) ?: genericNotFoundHandler
             when(handler) {
-                is SuspendableHttpRequestHandler -> handler.handle(exchange)
                 is NonSuspendableHttpRequestHandler -> {
-                    val response = handler.handle(exchange)
-                    if(!offerResponse(response)) {
+                    val response = try {
+                        handler.handle(exchange)
+                    }
+                    catch (ex: Exception) {
+                        HttpResponses.InternalServerError(ex)
+                    }
+
+                    if (!offerResponse(response)) {
                         connectionWriter.addAsync(this)
+                    }
+                }
+                is SuspendableHttpRequestHandler -> {
+                    launchCoroutine {
+                        val response = try {
+                            handler.handle(exchange)
+                        }
+                        catch (ex: Exception) {
+                            HttpResponses.InternalServerError(ex)
+                        }
+
+                        if (!offerResponse(response)) {
+                            connectionWriter.addAsync(this)
+                        }
                     }
                 }
             }

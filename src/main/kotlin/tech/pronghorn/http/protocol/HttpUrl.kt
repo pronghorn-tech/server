@@ -20,26 +20,6 @@ import java.net.URLDecoder
 import java.util.Arrays
 import java.util.Objects
 
-data class QueryParam(val name: ByteArray,
-                      val value: ByteArray) {
-    constructor(name: String,
-                value: String) : this(name.toByteArray(Charsets.US_ASCII), value.toByteArray(Charsets.US_ASCII))
-
-    override fun equals(other: Any?): Boolean {
-        return when (other) {
-            this === other -> true
-            is QueryParam -> {
-                return Arrays.equals(name, other.name) && Arrays.equals(value, other.name)
-            }
-            else -> false
-        }
-    }
-
-    override fun hashCode(): Int {
-        return Objects.hash(name, value)
-    }
-}
-
 sealed class HttpUrlParseResult
 
 object InvalidHttpUrl : HttpUrlParseResult()
@@ -54,6 +34,23 @@ sealed class HttpUrl : HttpUrlParseResult() {
     abstract fun getHost(): String?
     abstract fun getPort(): Int?
     abstract fun getQueryParams(): List<QueryParam>
+
+    fun getQueryParamAsBoolean(nameBytes: ByteArray): Boolean? = getQueryParams().find { param -> Arrays.equals(nameBytes, param.name) }?.valueAsBoolean()
+
+    fun getQueryParamAsInt(nameBytes: ByteArray): Int? = getQueryParams().find { param -> Arrays.equals(nameBytes, param.name) }?.valueAsInt()
+
+    fun getQueryParamAsLong(nameBytes: ByteArray): Long? = getQueryParams().find { param -> Arrays.equals(nameBytes, param.name) }?.valueAsLong()
+
+    fun getQueryParamAsString(nameBytes: ByteArray): String? = getQueryParams().find { param -> Arrays.equals(nameBytes, param.name) }?.valueAsString()
+
+    fun getQueryParamAsBoolean(name: String): Boolean? = getQueryParams().find { param -> Arrays.equals(name.toByteArray(Charsets.US_ASCII), param.name) }?.valueAsBoolean()
+
+    fun getQueryParamAsInt(name: String): Int? = getQueryParams().find { param -> Arrays.equals(name.toByteArray(Charsets.US_ASCII), param.name) }?.valueAsInt()
+
+    fun getQueryParamAsLong(name: String): Long? = getQueryParams().find { param -> Arrays.equals(name.toByteArray(Charsets.US_ASCII), param.name) }?.valueAsLong()
+
+    fun getQueryParamAsString(name: String): String? = getQueryParams().find { param -> Arrays.equals(name.toByteArray(Charsets.US_ASCII), param.name) }?.valueAsString()
+
 
     override fun equals(other: Any?): Boolean {
         return when (other) {
@@ -85,6 +82,8 @@ class ByteArrayHttpUrl(private val path: ByteArray?,
                        private val port: Int? = null,
                        private val queryParams: ByteArray? = null,
                        private val pathContainsPercentEncoding: Boolean) : HttpUrl() {
+    private val parsedQueryParams by lazy(LazyThreadSafetyMode.NONE) { parseQueryParams() }
+
     override fun getPathBytes(): ByteArray {
         if (path == null) {
             return rootBytes
@@ -121,7 +120,7 @@ class ByteArrayHttpUrl(private val path: ByteArray?,
 
     override fun getPort(): Int? = port
 
-    override fun getQueryParams(): List<QueryParam> {
+    private fun parseQueryParams(): List<QueryParam> {
         if(queryParams == null) {
             return emptyList()
         }
@@ -155,6 +154,8 @@ class ByteArrayHttpUrl(private val path: ByteArray?,
 
         return params
     }
+
+    override fun getQueryParams(): List<QueryParam> = parsedQueryParams
 }
 
 class ValueHttpUrl(private val path: String,

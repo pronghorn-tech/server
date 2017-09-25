@@ -22,7 +22,7 @@ import tech.pronghorn.http.HttpResponse
 sealed class HttpRequestHandler
 
 abstract class SuspendableHttpRequestHandler: HttpRequestHandler() {
-    internal abstract suspend fun handle(exchange: HttpExchange)
+    internal abstract suspend fun handle(exchange: HttpExchange): HttpResponse
 }
 
 abstract class NonSuspendableHttpRequestHandler: HttpRequestHandler() {
