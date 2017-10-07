@@ -138,6 +138,7 @@ class MultiSocketManagerService(override val worker: HttpServerWorker) : SocketM
             acceptedCount += 1
             acceptedSocket.configureBlocking(false)
             acceptedSocket.socket().tcpNoDelay = true
+            acceptedSocket.socket().keepAlive = true
 
             val connection = HttpServerConnection(worker, acceptedSocket)
             worker.addConnection(connection)

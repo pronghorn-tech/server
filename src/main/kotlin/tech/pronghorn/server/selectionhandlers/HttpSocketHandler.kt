@@ -20,7 +20,7 @@ import tech.pronghorn.coroutines.core.ReadWriteSelectionKeyHandler
 import tech.pronghorn.plugins.logging.LoggingPlugin
 import tech.pronghorn.server.HttpServerConnection
 
-class HttpSocketHandler(private val connection: HttpServerConnection): ReadWriteSelectionKeyHandler<HttpServerConnection> {
+class HttpSocketHandler(private val connection: HttpServerConnection): ReadWriteSelectionKeyHandler {
     private val logger by lazy(LazyThreadSafetyMode.NONE) { LoggingPlugin.get(javaClass) }
     private val connectionReadServiceQueueWriter = connection.worker.connectionReadServiceQueueWriter
     private val responseWriterServiceQueueWriter = connection.worker.responseWriterServiceQueueWriter

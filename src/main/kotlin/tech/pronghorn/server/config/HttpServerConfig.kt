@@ -92,7 +92,7 @@ class HttpServerConfig(val address: InetSocketAddress,
                 "listenBacklog($listenBacklog), " +
                 "acceptGrouping($acceptGrouping), " +
                 "maxPipelinedRequests($maxPipelinedRequests), " +
-                "maxRequestSize($maxRequestSize)," +
+                "maxRequestSize($maxRequestSize), " +
                 "useDirectByteBuffers($useDirectByteBuffers)"
     }
 

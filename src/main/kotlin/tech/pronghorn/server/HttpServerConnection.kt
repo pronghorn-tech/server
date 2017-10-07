@@ -23,8 +23,7 @@ import tech.pronghorn.plugins.internalQueue.InternalQueuePlugin
 import tech.pronghorn.server.bufferpools.ManagedByteBuffer
 import tech.pronghorn.server.requesthandlers.*
 import tech.pronghorn.server.selectionhandlers.HttpSocketHandler
-import tech.pronghorn.util.runAllIgnoringExceptions
-import tech.pronghorn.util.write
+import tech.pronghorn.util.*
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.*
@@ -62,7 +61,7 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         writeBuffer = null
         if (hasPendingWrites) {
             hasPendingWrites = false
-            removeInterestOps(SelectionKey.OP_WRITE)
+            selectionKey.removeInterestOps(SelectionKey.OP_WRITE)
         }
     }
 
@@ -82,7 +81,7 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         isReadQueued = false
         isClosed = true
         selectionKey.cancel()
-        runAllIgnoringExceptions(
+        ignoreExceptions(
                 { if (reason != null) socket.write(reason) },
                 { socket.close() }
         )
@@ -248,7 +247,7 @@ open class HttpServerConnection(val worker: HttpServerWorker,
             this.writeBuffer = managedBuffer
             if (!hasPendingWrites) {
                 hasPendingWrites = true
-                addInterestOps(SelectionKey.OP_WRITE)
+                selectionKey.addInterestOps(SelectionKey.OP_WRITE)
             }
             return false
         }
@@ -308,24 +307,6 @@ open class HttpServerConnection(val worker: HttpServerWorker,
                     }
                 }
             }
-        }
-    }
-
-    private fun removeInterestOps(removeInterestOps: Int) {
-        try {
-            selectionKey.interestOps(selectionKey.interestOps() and removeInterestOps.inv())
-        }
-        catch (ex: CancelledKeyException) {
-            close("Connection closed.")
-        }
-    }
-
-    private fun addInterestOps(newInterestOps: Int) {
-        try {
-            selectionKey.interestOps(selectionKey.interestOps() or newInterestOps)
-        }
-        catch (ex: CancelledKeyException) {
-            close("Connection closed.")
         }
     }
 }

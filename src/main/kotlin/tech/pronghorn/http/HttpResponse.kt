@@ -21,7 +21,7 @@ import java.nio.ByteBuffer
 
 abstract class HttpResponse(val code: HttpResponseCode) {
     protected open val headers: MutableMap<HttpResponseHeader, HttpResponseHeaderValue<*>> = mutableMapOf()
-    protected abstract val body: ByteArray
+    protected abstract val content: ResponseContent
     private var calculatedOutputSize = 0
 
     fun getOutputSize(commonHeaderSize: Int): Int {
@@ -29,7 +29,7 @@ abstract class HttpResponse(val code: HttpResponseCode) {
             val statusLineSize = SupportedHttpVersions.HTTP11.bytes.size + code.bytes.size + 3
             val headersSize = headers.map { (key, value) -> key.displayBytes.size + value.valueLength + 4 }.sum()
 
-            calculatedOutputSize = statusLineSize + headersSize + 2 + body.size
+            calculatedOutputSize = statusLineSize + headersSize + 2 + content.size
         }
 
         return calculatedOutputSize + commonHeaderSize
@@ -65,19 +65,12 @@ abstract class HttpResponse(val code: HttpResponseCode) {
         writeHeaders(buffer)
 
         buffer.putShort(carriageReturnNewLineShort)
-
-        writeBody(buffer)
+        content.writeBody(buffer)
     }
 
     private fun writeHeaders(buffer: ByteBuffer) {
         headers.forEach { (key, value) ->
             value.writeHeader(key, buffer)
-        }
-    }
-
-    private fun writeBody(buffer: ByteBuffer) {
-        if (body.isNotEmpty()) {
-            buffer.put(body, 0, body.size)
         }
     }
 }

@@ -26,6 +26,7 @@ class ServerConnectionCreationService(override val worker: HttpServerWorker) : M
     suspend override fun process(socket: SocketChannel) {
         socket.configureBlocking(false)
         socket.socket().tcpNoDelay = true
+        socket.socket().keepAlive = true
         val connection = HttpServerConnection(worker, socket)
         worker.addConnection(connection)
     }

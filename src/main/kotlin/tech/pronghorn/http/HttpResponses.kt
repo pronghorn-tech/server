@@ -21,7 +21,6 @@ import tech.pronghorn.plugins.concurrentMap.ConcurrentMapPlugin
 import java.nio.charset.Charset
 import java.util.Arrays
 
-private val emptyBytes = ByteArray(0)
 private val noContentHeaders = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
         StandardHttpResponseHeaders.ContentLength to HttpResponseHeaderValue.valueOf(0)
 )
@@ -32,22 +31,13 @@ object HttpResponses {
     private data class ContentTypeCharsetKey(val contentType: ContentType,
                                              val charset: Charset)
 
-    open class OK(override final val body: ByteArray) : HttpResponse(HttpResponseCode.OK) {
+    open class OK(override final val content: ResponseContent) : HttpResponse(HttpResponseCode.OK) {
         override val headers = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
-                StandardHttpResponseHeaders.ContentLength to HttpResponseHeaderValue.valueOf(body.size)
+                StandardHttpResponseHeaders.ContentLength to HttpResponseHeaderValue.valueOf(content.size)
         )
 
-        constructor(body: ByteArray,
-                    contentType: ContentType) : this(body) {
-            addHeader(StandardHttpResponseHeaders.ContentType, contentType.bytes)
-        }
-
-        constructor(body: String,
-                    contentType: ContentType) : this(body.toByteArray(Charsets.US_ASCII), contentType)
-
-        constructor(body: String,
-                    contentType: ContentType,
-                    charset: Charset) : this(body.toByteArray(charset)) {
+        private fun addContentTypeHeaderWithCharset(contentType: ContentType,
+                                            charset: Charset) {
             val contentTypeHeaderValue = contentTypeMap.getOrPut(ContentTypeCharsetKey(contentType, charset), {
                 val charsetBytes = charset.displayName().toByteArray(Charsets.US_ASCII)
                 val charsetSpecifierBytes = "; charset=".toByteArray(Charsets.US_ASCII)
@@ -59,15 +49,49 @@ object HttpResponses {
 
             addHeader(StandardHttpResponseHeaders.ContentType, contentTypeHeaderValue)
         }
+
+        constructor(body: ByteArray,
+                    contentType: ContentType) : this(ResponseContent.from(body)) {
+            addHeader(StandardHttpResponseHeaders.ContentType, contentType.bytes)
+        }
+
+        constructor(body: ByteArray,
+                    contentType: ContentType,
+                    charset: Charset) : this(ResponseContent.from(body)) {
+            addContentTypeHeaderWithCharset(contentType, charset)
+        }
+
+        constructor(body: Collection<ByteArray>) : this(ResponseContent.from(body))
+
+        constructor(body: Collection<ByteArray>,
+                    contentType: ContentType) : this(ResponseContent.from(body)) {
+            addHeader(StandardHttpResponseHeaders.ContentType, contentType.bytes)
+        }
+
+        constructor(body: Collection<ByteArray>,
+                    contentType: ContentType,
+                    charset: Charset) : this(ResponseContent.from(body)) {
+            addContentTypeHeaderWithCharset(contentType, charset)
+        }
+
+        constructor(body: String,
+                    contentType: ContentType) : this(body.toByteArray(Charsets.US_ASCII), contentType)
+
+        constructor(body: String,
+                    contentType: ContentType,
+                    charset: Charset) : this(ResponseContent.from(body, charset)) {
+            addContentTypeHeaderWithCharset(contentType, charset)
+        }
     }
 
-    class NoContent : HttpResponse(HttpResponseCode.NoContent) {
-        override val body = emptyBytes
+    sealed class NoContent : HttpResponse(HttpResponseCode.NoContent) {
+        companion object: NoContent()
+        override val content = EmptyResponseContent
         override val headers = noContentHeaders
     }
 
     class MovedPermanently(val locationBytes: ByteArray) : HttpResponse(HttpResponseCode.MovedPermanently) {
-        override final val body: ByteArray = emptyBytes
+        override val content = EmptyResponseContent
         override val headers = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
                 StandardHttpResponseHeaders.Location to HttpResponseHeaderValue.valueOf(locationBytes)
         )
@@ -76,7 +100,7 @@ object HttpResponses {
     }
 
     class Found(val locationBytes: ByteArray) : HttpResponse(HttpResponseCode.Found) {
-        override final val body: ByteArray = emptyBytes
+        override val content = EmptyResponseContent
         override val headers = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
                 StandardHttpResponseHeaders.Location to HttpResponseHeaderValue.valueOf(locationBytes)
         )
@@ -85,7 +109,7 @@ object HttpResponses {
     }
 
     class TemporaryRedirect(val locationBytes: ByteArray) : HttpResponse(HttpResponseCode.TemporaryRedirect) {
-        override final val body: ByteArray = emptyBytes
+        override val content = EmptyResponseContent
         override val headers = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
                 StandardHttpResponseHeaders.Location to HttpResponseHeaderValue.valueOf(locationBytes)
         )
@@ -93,23 +117,25 @@ object HttpResponses {
         constructor(location: String) : this(location.toByteArray(Charsets.US_ASCII))
     }
 
-    open class NotFound(override final val body: ByteArray = emptyBytes) : HttpResponse(HttpResponseCode.NotFound) {
+    open class NotFound(override final val content: ResponseContent = EmptyResponseContent) : HttpResponse(HttpResponseCode.NotFound) {
+        companion object: NotFound()
+
         override val headers = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
-                StandardHttpResponseHeaders.ContentLength to HttpResponseHeaderValue.valueOf(body.size)
+                StandardHttpResponseHeaders.ContentLength to HttpResponseHeaderValue.valueOf(content.size)
         )
 
         constructor(body: ByteArray,
-                    contentType: ContentType) : this(body) {
+                    contentType: ContentType) : this(ResponseContent.from(body)) {
             addHeader(StandardHttpResponseHeaders.ContentType, contentType.bytes)
         }
     }
 
-    open class InternalServerError(override final val body: ByteArray = emptyBytes) : HttpResponse(HttpResponseCode.InternalServerError) {
+    open class InternalServerError(override final val content: ResponseContent = EmptyResponseContent) : HttpResponse(HttpResponseCode.InternalServerError) {
         override val headers = mutableMapOf<HttpResponseHeader, HttpResponseHeaderValue<*>>(
-                StandardHttpResponseHeaders.ContentLength to HttpResponseHeaderValue.valueOf(body.size)
+                StandardHttpResponseHeaders.ContentLength to HttpResponseHeaderValue.valueOf(content.size)
         )
 
-        constructor(message: String) : this(message.toByteArray(Charsets.US_ASCII))
+        constructor(message: String) : this(ResponseContent.from(message.toByteArray(Charsets.US_ASCII)))
 
         constructor(ex: Throwable) : this(ex.message ?: "Unknown")
     }

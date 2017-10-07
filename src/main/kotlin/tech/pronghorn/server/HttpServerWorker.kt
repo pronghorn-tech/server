@@ -27,7 +27,7 @@ import tech.pronghorn.server.config.HttpServerConfig
 import tech.pronghorn.server.requesthandlers.HttpRequestHandler
 import tech.pronghorn.server.services.*
 import tech.pronghorn.util.finder.*
-import tech.pronghorn.util.runAllIgnoringExceptions
+import tech.pronghorn.util.ignoreException
 import java.nio.ByteBuffer
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -66,19 +66,22 @@ class HttpServerWorker(val server: HttpServer,
             responseWriterService
     )
 
-    fun addConnection(connection: HttpServerConnection) {
+    internal fun addConnection(connection: HttpServerConnection) {
         connections.add(connection)
     }
 
-    fun removeConnection(connection: HttpServerConnection) {
+    internal fun removeConnection(connection: HttpServerConnection) {
         connections.remove(connection)
     }
 
     override fun onShutdown() {
-        logger.info { "Worker shutting down ${connections.size} connections" }
-        runAllIgnoringExceptions({
+        if(connections.size > 0) {
+            logger.info { "Worker closing ${connections.size} connections" }
+        }
+
+        ignoreException {
             connections.forEach { it.close("Server is shutting down.") }
-        })
+        }
     }
 
     private fun calculateCommonHeaderCache(): ByteArray {
@@ -99,7 +102,7 @@ class HttpServerWorker(val server: HttpServer,
         return Arrays.copyOf(buffer.array(), buffer.capacity())
     }
 
-    fun getCommonHeaders(): ByteArray {
+    internal fun getCommonHeaders(): ByteArray {
         if (config.sendDateHeader) {
             val now = System.currentTimeMillis() / 1000
             if (latestDate != now) {
