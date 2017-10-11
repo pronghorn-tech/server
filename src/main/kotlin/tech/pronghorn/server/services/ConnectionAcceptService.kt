@@ -131,7 +131,6 @@ class MultiSocketManagerService(override val worker: HttpServerWorker) : SocketM
     }
 
     override fun accept() {
-        logger.debug { "Accepting connections..." }
         var acceptedCount = 0
         var acceptedSocket = serverSocket.accept()
         while (acceptedSocket != null) {
@@ -147,6 +146,5 @@ class MultiSocketManagerService(override val worker: HttpServerWorker) : SocketM
             }
             acceptedSocket = serverSocket.accept()
         }
-        logger.debug { "Accepted $acceptedCount connections." }
     }
 }
