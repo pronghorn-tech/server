@@ -16,18 +16,23 @@
 
 package tech.pronghorn.http.protocol
 
-const val carriageReturnNewLineShort: Short = 3338
-const val colonSpaceShort: Short = 14880
-const val colonByte: Byte = 0x3A
-const val tabByte: Byte = 0x9
-const val forwardSlashByte: Byte = 0x2F
-const val ampersandByte: Byte = 0x26
-const val equalsByte: Byte = 0x3D
-const val asteriskByte: Byte = 0x2A
-const val percentByte: Byte = 0x25
-const val questionByte: Byte = 0x3F
-const val spaceByte: Byte = 0x20
-const val carriageReturnByte: Byte = 0xD
-const val newLineByte: Byte = 0xA
-const val zeroByte: Byte = 0x48
-const val oneByte: Byte = 0x49
+const internal val carriageReturnNewLineShort: Short = 3338
+const internal val colonSpaceShort: Short = 14880
+const internal val colonByte: Byte = 0x3A
+const internal val tabByte: Byte = 0x9
+const internal val forwardSlashByte: Byte = 0x2F
+const internal val ampersandByte: Byte = 0x26
+const internal val equalsByte: Byte = 0x3D
+const internal val asteriskByte: Byte = 0x2A
+const internal val percentByte: Byte = 0x25
+const internal val questionByte: Byte = 0x3F
+const internal val spaceByte: Byte = 0x20
+const internal val carriageReturnByte: Byte = 0xD
+const internal val newLineByte: Byte = 0xA
+const internal val zeroByte: Byte = 0x30
+const internal val oneByte: Byte = 0x31
+
+const internal val gByte: Byte = 0x67
+const internal val zByte: Byte = 0x7A
+const internal val iByte: Byte = 0x69
+const internal val pByte: Byte = 0x70
