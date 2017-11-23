@@ -16,9 +16,9 @@
 
 package tech.pronghorn.server.requesthandlers
 
-import tech.pronghorn.http.HttpExchange
+import tech.pronghorn.http.HttpRequest
 import tech.pronghorn.http.HttpResponse
 
-class StaticHttpRequestHandler(val response: HttpResponse) : NonSuspendableHttpRequestHandler() {
-    override fun handle(exchange: HttpExchange) = response
+public open class StaticHttpRequestHandler(public val response: HttpResponse) : NonSuspendableHttpRequestHandler() {
+    override fun handle(request: HttpRequest) = response
 }

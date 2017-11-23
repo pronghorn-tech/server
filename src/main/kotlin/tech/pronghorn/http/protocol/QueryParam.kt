@@ -6,12 +6,12 @@ import java.util.Objects
 private val trueBytes = "true".toByteArray(Charsets.US_ASCII)
 private val falseBytes = "false".toByteArray(Charsets.US_ASCII)
 
-class QueryParam(val name: ByteArray,
-                 val value: ByteArray) {
+public class QueryParam(public val name: ByteArray,
+                        public val value: ByteArray) {
     constructor(name: String,
                 value: String) : this(name.toByteArray(Charsets.US_ASCII), value.toByteArray(Charsets.US_ASCII))
 
-    fun valueAsBoolean(): Boolean? {
+    public fun valueAsBoolean(): Boolean? {
         if (value.size == 1) {
             when (value[0]) {
                 zeroByte -> return false
@@ -30,7 +30,7 @@ class QueryParam(val name: ByteArray,
         }
     }
 
-    fun valueAsInt(): Int? {
+    public fun valueAsInt(): Int? {
         var intValue = 0
         var x = 0
         while (x < value.size) {
@@ -46,7 +46,7 @@ class QueryParam(val name: ByteArray,
         return intValue
     }
 
-    fun valueAsLong(): Long? {
+    public fun valueAsLong(): Long? {
         var longValue = 0L
         var x = 0
         while (x < value.size) {
@@ -62,7 +62,7 @@ class QueryParam(val name: ByteArray,
         return longValue
     }
 
-    fun valueAsString(): String = String(value, Charsets.US_ASCII)
+    public fun valueAsString(): String = String(value, Charsets.US_ASCII)
 
     override fun equals(other: Any?): Boolean {
         return when (other) {

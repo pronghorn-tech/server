@@ -18,8 +18,8 @@ package tech.pronghorn.http.protocol
 
 import tech.pronghorn.util.finder.ByteBacked
 
-enum class HttpResponseCode(val code: Int,
-                            val codeName: String) : ByteBacked {
+public enum class HttpResponseCode(public val code: Int,
+                                   public val codeName: String) : ByteBacked {
     Continue(100, "Continue"),
     SwitchingProtocols(101, "Switching Protocols"),
     Processing(102, "Processing"),

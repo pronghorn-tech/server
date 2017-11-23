@@ -18,11 +18,11 @@ package tech.pronghorn.http.protocol
 
 import tech.pronghorn.util.finder.*
 
-interface HttpRequestHeader : ByteBacked {
-    fun getHeaderName(): String
+public interface HttpRequestHeader : ByteBacked {
+    public fun getHeaderName(): String
 }
 
-class InstanceHttpRequestHeader(private val value: ByteArray) : HttpRequestHeader {
+public class InstanceHttpRequestHeader(private val value: ByteArray) : HttpRequestHeader {
     constructor(name: String) : this(name.toByteArray(Charsets.US_ASCII))
 
     override val bytes = ByteArray(0)
@@ -30,7 +30,7 @@ class InstanceHttpRequestHeader(private val value: ByteArray) : HttpRequestHeade
     override fun getHeaderName(): String = value.toString()
 }
 
-enum class StandardHttpRequestHeaders(val displayName: String) : HttpRequestHeader {
+public enum class StandardHttpRequestHeaders(private val displayName: String) : HttpRequestHeader {
     Accept("Accept"),
     AcceptCharset("Accept-Charset"),
     AcceptEncoding("Accept-Encoding"),
@@ -66,8 +66,8 @@ enum class StandardHttpRequestHeaders(val displayName: String) : HttpRequestHead
     Via("Via"),
     Warning("Warning");
 
-    val parseName: String = displayName.toLowerCase()
-    val displayBytes: ByteArray = displayName.toByteArray(Charsets.US_ASCII)
+    public val parseName: String = displayName.toLowerCase()
+    public val displayBytes: ByteArray = displayName.toByteArray(Charsets.US_ASCII)
     override val bytes: ByteArray = parseName.toByteArray()
 
     override fun getHeaderName(): String = displayName

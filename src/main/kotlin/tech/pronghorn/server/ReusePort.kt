@@ -24,8 +24,8 @@ import kotlin.reflect.jvm.javaMethod
 
 private const val SO_REUSEPORT = 15
 
-object ReusePort {
-    fun setReusePort(serverSocket: ServerSocketChannel): Boolean {
+public object ReusePort {
+    public fun setReusePort(serverSocket: ServerSocketChannel): Boolean {
         try {
             val fdProp = serverSocket::class.declaredMemberProperties.find { field -> field.name == "fd" } ?: return false
             fdProp.isAccessible = true

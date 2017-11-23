@@ -21,7 +21,7 @@ import java.nio.ByteBuffer
 import java.util.Arrays
 import java.util.HashMap
 
-const val mostDifferentiatedCutoff = 4
+internal const val mostDifferentiatedCutoff = 4
 
 internal class DifferentiatedFinder<T : ByteBacked>(toLookup: Array<T>) : ByteBackedFinder<T> {
     private val maxLength = toLookup.map(ByteBacked::bytes).map { b -> b.size }.max() ?: 0
@@ -30,8 +30,8 @@ internal class DifferentiatedFinder<T : ByteBacked>(toLookup: Array<T>) : ByteBa
     private val hashMap = HashMap<Long, T>(toLookup.size)
     private val hasher = ArrayHasherPlugin.get()
 
-    data class Differentiation(val byteIndex: Int = 0,
-                               val duplicateCount: Int = 0)
+    private class Differentiation(val byteIndex: Int = 0,
+                          val duplicateCount: Int = 0)
 
     init {
         toLookup.forEach { value ->

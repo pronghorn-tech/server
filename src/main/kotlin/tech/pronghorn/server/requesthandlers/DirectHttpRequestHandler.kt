@@ -16,13 +16,13 @@
 
 package tech.pronghorn.server.requesthandlers
 
-import tech.pronghorn.http.HttpExchange
+import tech.pronghorn.http.HttpRequest
 import tech.pronghorn.http.HttpResponse
 
-abstract class DirectHttpRequestHandler : NonSuspendableHttpRequestHandler() {
-    override fun handle(exchange: HttpExchange): HttpResponse {
-        return handleDirect(exchange)
+public abstract class DirectHttpRequestHandler : NonSuspendableHttpRequestHandler() {
+    override fun handle(request: HttpRequest): HttpResponse {
+        return handleDirect(request)
     }
 
-    abstract fun handleDirect(exchange: HttpExchange): HttpResponse
+    internal abstract fun handleDirect(request: HttpRequest): HttpResponse
 }

@@ -19,14 +19,14 @@ package tech.pronghorn.http.protocol
 import tech.pronghorn.util.sliceToArray
 import java.nio.ByteBuffer
 
-val RootURI = ValueHttpUrl("/")
-val StarURI = ValueHttpUrl("*")
+private val RootURI = ValueHttpUrl("/")
+private val StarURI = ValueHttpUrl("*")
 
 private const val httpAsInt = 1752462448
 private const val doubleSlashAsShort: Short = 12079
 private const val secureByte: Byte = 0x73
 
-fun parseHttpUrl(buffer: ByteBuffer): HttpUrlParseResult {
+public fun parseHttpUrl(buffer: ByteBuffer): HttpUrlParseResult {
     if (!buffer.hasRemaining()) {
         return IncompleteHttpUrl
     }
@@ -84,7 +84,7 @@ fun parseHttpUrl(buffer: ByteBuffer): HttpUrlParseResult {
             return IncompleteHttpUrl
         }
 
-        val firstFour = buffer.getInt()
+        val firstFour = buffer.int
         if (firstFour != httpAsInt) {
             return InvalidHttpUrl
         }
@@ -100,7 +100,7 @@ fun parseHttpUrl(buffer: ByteBuffer): HttpUrlParseResult {
             if (buffer.remaining() < 2) {
                 return IncompleteHttpUrl
             }
-            val slashes = buffer.getShort()
+            val slashes = buffer.short
             if (slashes != doubleSlashAsShort) {
                 return InvalidHttpUrl
             }

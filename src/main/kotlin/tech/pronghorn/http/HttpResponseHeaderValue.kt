@@ -17,66 +17,51 @@
 package tech.pronghorn.http
 
 import tech.pronghorn.http.protocol.*
+import tech.pronghorn.util.*
 import java.nio.ByteBuffer
 
-sealed class HttpResponseHeaderValue<T>(open val value: T) {
+public sealed class HttpResponseHeaderValue<T> {
     companion object {
-        fun valueOf(value: Int): HttpResponseHeaderValue<Int> = NumericResponseHeaderValue(value)
+        public fun valueOf(value: Int): HttpResponseHeaderValue<Int> = IntResponseHeaderValue(value)
 
-        fun valueOf(value: String): HttpResponseHeaderValue<ByteArray> = ByteArrayResponseHeaderValue(value.toByteArray(Charsets.US_ASCII))
+        public fun valueOf(value: Long): HttpResponseHeaderValue<Long> = LongResponseHeaderValue(value)
 
-        fun valueOf(value: ByteArray): HttpResponseHeaderValue<ByteArray> = ByteArrayResponseHeaderValue(value)
+        public fun valueOf(value: String): HttpResponseHeaderValue<ByteArray> = ByteArrayResponseHeaderValue(value.toByteArray(Charsets.US_ASCII))
+
+        public fun valueOf(value: ByteArray): HttpResponseHeaderValue<ByteArray> = ByteArrayResponseHeaderValue(value)
     }
 
-    abstract val valueLength: Int
+    public abstract val value: T
+    public abstract val valueLength: Int
 
-    abstract fun writeHeader(headerType: HttpResponseHeader,
-                             output: ByteBuffer)
+    public fun writeHeader(headerType: HttpResponseHeader,
+                    buffer: ByteBuffer) {
+        buffer.put(headerType.displayBytes)
+        buffer.putShort(colonSpaceShort)
+        writeHeaderValue(buffer)
+        buffer.putShort(carriageReturnNewLineShort)
+    }
+
+    public abstract fun writeHeaderValue(buffer: ByteBuffer)
 }
 
-class NumericResponseHeaderValue(override val value: Int) : HttpResponseHeaderValue<Int>(value) {
-    override val valueLength = when {
-        value < 10 -> 1
-        value < 100 -> 2
-        value < 1000 -> 3
-        value < 10000 -> 4
-        value < 100000 -> 5
-        value < 1000000 -> 6
-        value < 10000000 -> 7
-        value < 100000000 -> 8
-        value < 1000000000 -> 9
-        else -> 10
-    }
+public class IntResponseHeaderValue(override val value: Int) : HttpResponseHeaderValue<Int>() {
+    override val valueLength = stringLengthOfInt(value)
 
-    override fun writeHeader(headerType: HttpResponseHeader,
-                             output: ByteBuffer) {
-        output.put(headerType.displayBytes)
-        output.putShort(colonSpaceShort)
-
-        if (value > 1000000000) output.put((48 + (value.rem(10000000000) / 1000000000)).toByte())
-        if (value > 100000000) output.put((48 + (value.rem(1000000000) / 100000000)).toByte())
-        if (value > 10000000) output.put((48 + (value.rem(100000000) / 10000000)).toByte())
-        if (value > 1000000) output.put((48 + (value.rem(10000000) / 1000000)).toByte())
-        if (value > 100000) output.put((48 + (value.rem(1000000) / 100000)).toByte())
-        if (value > 10000) output.put((48 + (value.rem(100000) / 10000)).toByte())
-        if (value > 1000) output.put((48 + (value.rem(10000) / 1000)).toByte())
-        if (value > 100) output.put((48 + (value.rem(1000) / 100)).toByte())
-        if (value > 10) output.put((48 + (value.rem(100) / 10)).toByte())
-        output.put((48 + value.rem(10)).toByte())
-
-        output.putShort(carriageReturnNewLineShort)
-    }
+    override fun writeHeaderValue(buffer: ByteBuffer) = writeIntAsStringToBuffer(value, buffer)
 }
 
-class ByteArrayResponseHeaderValue(override val value: ByteArray) : HttpResponseHeaderValue<ByteArray>(value) {
+public class LongResponseHeaderValue(override val value: Long) : HttpResponseHeaderValue<Long>() {
+    override val valueLength = stringLengthOfLong(value)
+
+    override fun writeHeaderValue(buffer: ByteBuffer) = writeLongAsStringToBuffer(value, buffer)
+}
+
+public class ByteArrayResponseHeaderValue(override val value: ByteArray) : HttpResponseHeaderValue<ByteArray>() {
     override val valueLength: Int = value.size
 
-    override fun writeHeader(headerType: HttpResponseHeader,
-                             output: ByteBuffer) {
-        output.put(headerType.displayBytes)
-        output.putShort(colonSpaceShort)
-        output.put(value)
-        output.putShort(carriageReturnNewLineShort)
+    override fun writeHeaderValue(buffer: ByteBuffer) {
+        buffer.put(value)
     }
 }
 

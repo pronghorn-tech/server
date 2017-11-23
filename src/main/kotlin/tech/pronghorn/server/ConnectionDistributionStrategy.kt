@@ -16,32 +16,32 @@
 
 package tech.pronghorn.server
 
-import tech.pronghorn.coroutines.awaitable.QueueWriter
+import tech.pronghorn.coroutines.awaitable.queue.ExternalQueue
 import tech.pronghorn.server.services.ServerConnectionCreationService
 import java.nio.channels.SocketChannel
 
-abstract class ConnectionDistributionStrategy {
-    abstract val workers: Set<HttpServerWorker>
+public abstract class ConnectionDistributionStrategy {
+    protected abstract val workers: Set<HttpServerWorker>
 
-    private val writers = LinkedHashMap<HttpServerWorker, QueueWriter<SocketChannel>>()
+    private val writers = LinkedHashMap<HttpServerWorker, ExternalQueue.Writer<SocketChannel>>()
 
-    private fun getWriter(worker: HttpServerWorker): QueueWriter<SocketChannel> {
-        return worker.getServiceQueueWriter<SocketChannel, ServerConnectionCreationService>()
+    private fun getWriter(worker: HttpServerWorker): ExternalQueue.Writer<SocketChannel> {
+        return worker.getService<ServerConnectionCreationService>()?.getQueueWriter()
                 ?: throw IllegalStateException("ServerConnectionCreationService not available")
     }
 
     protected abstract fun getWorker(): HttpServerWorker
 
-    fun distributeConnection(socket: SocketChannel): Boolean {
+    internal suspend fun distributeConnection(socket: SocketChannel): Boolean {
         val worker = getWorker()
         val workerWriter = writers.getOrPut(worker, { getWriter(worker) })
         return workerWriter.offer(socket)
     }
 }
 
-class RoundRobinConnectionDistributionStrategy(override val workers: Set<HttpServerWorker>) : ConnectionDistributionStrategy() {
+public class RoundRobinConnectionDistributionStrategy(override val workers: Set<HttpServerWorker>) : ConnectionDistributionStrategy() {
     private var lastWorkerID = 0
-    val workerCount = workers.size
+    private val workerCount = workers.size
 
     override fun getWorker(): HttpServerWorker {
         return workers.elementAt(lastWorkerID++ % workerCount)

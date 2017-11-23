@@ -19,14 +19,14 @@ package tech.pronghorn.server.bufferpools
 import tech.pronghorn.plugins.internalQueue.InternalQueuePlugin
 import java.nio.ByteBuffer
 
-class ReusableBufferPoolManager(val bufferSize: Int,
-                                private val direct: Boolean = false) {
-    fun getBuffer(): ReusableByteBuffer = pool.poll() ?: ReusableByteBuffer(
+public class ReusableBufferPoolManager(public val bufferSize: Int,
+                                       public val direct: Boolean = false) {
+    public fun getBuffer(): ReusableByteBuffer = pool.poll() ?: ReusableByteBuffer(
             this,
             if (direct) ByteBuffer.allocateDirect(bufferSize) else ByteBuffer.allocate(bufferSize)
     )
 
-    fun release(buffer: ReusableByteBuffer) {
+    public fun release(buffer: ReusableByteBuffer) {
         pool.offer(buffer)
     }
 

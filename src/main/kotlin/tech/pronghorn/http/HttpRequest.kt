@@ -19,21 +19,21 @@ package tech.pronghorn.http
 import tech.pronghorn.http.protocol.*
 import tech.pronghorn.server.HttpServerConnection
 
-sealed class HttpParseResult
+public sealed class HttpParseResult
 
-object IncompleteRequestParseError : HttpParseResult()
+public object IncompleteRequestParseError : HttpParseResult()
 
-object InvalidUrlParseError : HttpParseResult()
+public object InvalidUrlParseError : HttpParseResult()
 
-object InvalidMethodParseError : HttpParseResult()
+public object InvalidMethodParseError : HttpParseResult()
 
-object InvalidVersionParseError : HttpParseResult()
+public object InvalidVersionParseError : HttpParseResult()
 
-class HttpExchange(val requestMethod: HttpMethod,
-                   val requestUrl: HttpUrl,
-                   val version: HttpVersion,
-                   val requestHeaders: Map<HttpRequestHeader, ByteArray>,
-                   val connection: HttpServerConnection,
-                   val requestBody: ByteArray?) : HttpParseResult()
+public class HttpRequest(public val method: HttpMethod,
+                         public val url: HttpUrl,
+                         public val version: HttpVersion,
+                         public val headers: Map<HttpRequestHeader, ByteArray>,
+                         public val connection: HttpServerConnection,
+                         public val body: ByteArray?) : HttpParseResult()
 
 

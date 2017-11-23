@@ -16,18 +16,18 @@
 
 package tech.pronghorn.server.requesthandlers
 
-import tech.pronghorn.http.HttpExchange
+import tech.pronghorn.http.HttpRequest
 import tech.pronghorn.http.HttpResponse
 import tech.pronghorn.plugins.logging.LoggingPlugin
 
-sealed class HttpRequestHandler {
+public sealed class HttpRequestHandler {
     protected val logger = LoggingPlugin.get(javaClass)
 }
 
-abstract class SuspendableHttpRequestHandler: HttpRequestHandler() {
-    abstract suspend fun handle(exchange: HttpExchange): HttpResponse
+public abstract class SuspendableHttpRequestHandler: HttpRequestHandler() {
+    internal abstract suspend fun handle(request: HttpRequest): HttpResponse
 }
 
-abstract class NonSuspendableHttpRequestHandler: HttpRequestHandler() {
-    internal abstract fun handle(exchange: HttpExchange): HttpResponse
+public abstract class NonSuspendableHttpRequestHandler: HttpRequestHandler() {
+    internal abstract fun handle(request: HttpRequest): HttpResponse
 }

@@ -18,7 +18,7 @@ package tech.pronghorn.http.protocol
 
 import tech.pronghorn.util.finder.*
 
-enum class HttpMethod(val methodName: String) : ByteBacked {
+public enum class HttpMethod(public val methodName: String) : ByteBacked {
     CONNECT("CONNECT"),
     DELETE("DELETE"),
     GET("GET"),

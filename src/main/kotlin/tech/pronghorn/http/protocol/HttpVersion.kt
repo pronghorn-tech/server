@@ -19,17 +19,17 @@ package tech.pronghorn.http.protocol
 import tech.pronghorn.util.finder.*
 import java.nio.ByteBuffer
 
-interface HttpVersion {
-    val majorVersion: Int
-    val minorVersion: Int
+public interface HttpVersion {
+    public val majorVersion: Int
+    public val minorVersion: Int
 }
 
-class InstanceHttpVersion(override val majorVersion: Int,
-                          override val minorVersion: Int) : HttpVersion {
+public class InstanceHttpVersion(override val majorVersion: Int,
+                                 override val minorVersion: Int) : HttpVersion {
     companion object {
-        fun parse(buffer: ByteBuffer,
-                  offset: Int,
-                  length: Int): InstanceHttpVersion? {
+        public fun parse(buffer: ByteBuffer,
+                         offset: Int,
+                         length: Int): InstanceHttpVersion? {
             var majorVersion = 0
             var minorVersion = 0
             var afterColon = false
@@ -64,9 +64,9 @@ class InstanceHttpVersion(override val majorVersion: Int,
     }
 }
 
-enum class SupportedHttpVersions(val versionName: String,
-                                 override val majorVersion: Int,
-                                 override val minorVersion: Int) : ByteBacked, HttpVersion {
+public enum class SupportedHttpVersions(versionName: String,
+                                        override val majorVersion: Int,
+                                        override val minorVersion: Int) : ByteBacked, HttpVersion {
     HTTP11("HTTP/1.1", 1, 1),
     HTTP10("HTTP/1.0", 1, 0);
 

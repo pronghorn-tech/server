@@ -16,6 +16,6 @@
 
 package tech.pronghorn.util.finder
 
-interface ByteBacked {
-    val bytes: ByteArray
+public interface ByteBacked {
+    public val bytes: ByteArray
 }

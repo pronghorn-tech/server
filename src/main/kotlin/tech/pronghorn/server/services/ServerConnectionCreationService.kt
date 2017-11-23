@@ -16,14 +16,14 @@
 
 package tech.pronghorn.server.services
 
-import tech.pronghorn.coroutines.service.MultiWriterExternalQueueService
+import tech.pronghorn.coroutines.services.ExternalQueueService
 import tech.pronghorn.server.HttpServerConnection
 import tech.pronghorn.server.HttpServerWorker
 import java.nio.channels.*
 
-class ServerConnectionCreationService(override val worker: HttpServerWorker) : MultiWriterExternalQueueService<SocketChannel>() {
+internal class ServerConnectionCreationService(override val worker: HttpServerWorker) : ExternalQueueService<SocketChannel>() {
     @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
-    suspend override fun process(socket: SocketChannel) {
+    override suspend fun process(socket: SocketChannel) {
         socket.configureBlocking(false)
         socket.socket().tcpNoDelay = true
         socket.socket().keepAlive = true

@@ -25,9 +25,8 @@ import kotlin.experimental.or
 private const val defaultHeaderMapSize = 8
 private val maxMethodLength = HttpMethod.values().map { it.methodName.length }.max() ?: 0
 
-@Suppress("VARIABLE_WITH_REDUNDANT_INITIALIZER")
-fun parseHttpRequest(buffer: ByteBuffer,
-                     connection: HttpServerConnection): HttpParseResult {
+public fun parseHttpRequest(buffer: ByteBuffer,
+                            connection: HttpServerConnection): HttpParseResult {
     val start = buffer.position()
 
     var firstSpace = -1
@@ -189,5 +188,5 @@ fun parseHttpRequest(buffer: ByteBuffer,
         return IncompleteRequestParseError
     }
 
-    return HttpExchange(method, url, version, headers, connection, body)
+    return HttpRequest(method, url, version, headers, connection, body)
 }

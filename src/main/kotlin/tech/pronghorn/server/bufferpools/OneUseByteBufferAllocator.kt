@@ -16,6 +16,6 @@
 
 package tech.pronghorn.server.bufferpools
 
-class OneUseByteBufferAllocator(private val direct: Boolean = false) {
-    fun getBuffer(bufferSize: Int): OneUseByteBuffer = OneUseByteBuffer(bufferSize, direct)
+public class OneUseByteBufferAllocator(private val direct: Boolean = false) {
+    public fun getBuffer(bufferSize: Int): OneUseByteBuffer = OneUseByteBuffer(bufferSize, direct)
 }

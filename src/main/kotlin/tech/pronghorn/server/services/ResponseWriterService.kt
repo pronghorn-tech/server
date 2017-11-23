@@ -16,11 +16,11 @@
 
 package tech.pronghorn.server.services
 
-import tech.pronghorn.coroutines.service.InternalQueueService
+import tech.pronghorn.coroutines.services.InternalQueueService
 import tech.pronghorn.server.HttpServerConnection
 import tech.pronghorn.server.HttpServerWorker
 
-class ResponseWriterService(override val worker: HttpServerWorker) : InternalQueueService<HttpServerConnection>() {
+internal class ResponseWriterService(override val worker: HttpServerWorker) : InternalQueueService<HttpServerConnection>() {
     @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
     override suspend fun process(connection: HttpServerConnection): Boolean {
         connection.isWriteQueued = false
