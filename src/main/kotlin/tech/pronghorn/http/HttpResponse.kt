@@ -17,60 +17,89 @@
 package tech.pronghorn.http
 
 import tech.pronghorn.http.protocol.*
+import tech.pronghorn.plugins.concurrentMap.ConcurrentMapPlugin
 import java.nio.ByteBuffer
+import java.nio.charset.Charset
+import java.util.Arrays
 
-abstract class HttpResponse(val code: HttpResponseCode) {
+public fun getHeadersOutputSize(headers: Map<HttpResponseHeader, HttpResponseHeaderValue<*>>): Int {
+    if (headers.isEmpty()) {
+        return 0
+    }
+    else {
+        return headers.map { (key, value) -> key.displayBytes.size + value.valueLength + 4 }.sum()
+    }
+}
+
+private class ContentTypeCharsetKey(public val contentType: ContentType,
+                                    public val charset: Charset)
+
+public abstract class HttpResponse(public val code: HttpResponseCode) {
+    companion object {
+        private val contentTypeMap = ConcurrentMapPlugin.get<ContentTypeCharsetKey, ByteArray>()
+    }
+
+    public abstract val content: ResponseContent
     protected open val headers: MutableMap<HttpResponseHeader, HttpResponseHeaderValue<*>> = mutableMapOf()
-    protected abstract val content: ResponseContent
-    private var calculatedOutputSize = 0
+    private var cachedHeaderSize = 0
 
-    fun getOutputSize(commonHeaderSize: Int): Int {
-        if (calculatedOutputSize == 0) {
+    fun getStatusAndHeaderSize(commonHeaderSize: Int): Int {
+        if (cachedHeaderSize == 0) {
             val statusLineSize = SupportedHttpVersions.HTTP11.bytes.size + code.bytes.size + 3
-            val headersSize = headers.map { (key, value) -> key.displayBytes.size + value.valueLength + 4 }.sum()
-
-            calculatedOutputSize = statusLineSize + headersSize + 2 + content.size
+            val headersSize = getHeadersOutputSize(headers)
+            cachedHeaderSize = statusLineSize + headersSize + commonHeaderSize + 2
         }
-
-        return calculatedOutputSize + commonHeaderSize
+        return cachedHeaderSize
     }
 
-    fun addHeader(headerType: HttpResponseHeader,
-                  value: ByteArray) {
-        calculatedOutputSize = 0
-        headers.put(headerType, HttpResponseHeaderValue.valueOf(value))
+    public fun setContentType(contentType: ContentType) {
+        addHeader(StandardHttpResponseHeaders.ContentType, contentType.asHeaderValue())
     }
 
-    fun addHeader(headerType: HttpResponseHeader,
-                  value: Int) {
-        calculatedOutputSize = 0
-        headers.put(headerType, HttpResponseHeaderValue.valueOf(value))
+    public fun setContentEncoding(contentEncoding: ContentEncoding) {
+        addHeader(StandardHttpResponseHeaders.ContentEncoding, contentEncoding.asHeaderValue())
     }
 
-    fun addHeader(headerType: HttpResponseHeader,
-                  value: String) {
-        calculatedOutputSize = 0
-        headers.put(headerType, HttpResponseHeaderValue.valueOf(value))
+    public fun setEtag(etag: ByteArray) {
+        addHeader(StandardHttpResponseHeaders.ETag, etag)
     }
 
-    fun writeToBuffer(buffer: ByteBuffer,
-                      commonHeaders: ByteArray) {
+    public fun setContentType(contentType: ContentType,
+                              charset: Charset) {
+        val contentTypeHeaderValue = HttpResponse.contentTypeMap.getOrPut(ContentTypeCharsetKey(contentType, charset), {
+            val charsetBytes = charset.displayName().toByteArray(Charsets.US_ASCII)
+            val charsetSpecifierBytes = "; charset=".toByteArray(Charsets.US_ASCII)
+            val contentTypeWithCharsetBytes = Arrays.copyOf(contentType.bytes, contentType.bytes.size + charsetSpecifierBytes.size + charsetBytes.size)
+            System.arraycopy(charsetSpecifierBytes, 0, contentTypeWithCharsetBytes, contentType.bytes.size, charsetSpecifierBytes.size)
+            System.arraycopy(charsetBytes, 0, contentTypeWithCharsetBytes, contentType.bytes.size + charsetSpecifierBytes.size, charsetBytes.size)
+            contentTypeWithCharsetBytes
+        })
+
+        addHeader(StandardHttpResponseHeaders.ContentType, contentTypeHeaderValue)
+    }
+
+    public fun addHeader(headerType: HttpResponseHeader,
+                         value: HttpResponseHeaderValue<*>) = headers.put(headerType, value)
+
+    public fun addHeader(headerType: HttpResponseHeader,
+                         value: ByteArray) = addHeader(headerType, HttpResponseHeaderValue.valueOf(value))
+
+    public fun addHeader(headerType: HttpResponseHeader,
+                         value: Int) = addHeader(headerType, HttpResponseHeaderValue.valueOf(value))
+
+    public fun addHeader(headerType: HttpResponseHeader,
+                         value: String) = addHeader(headerType, HttpResponseHeaderValue.valueOf(value))
+
+    public fun writeHeadersToBuffer(buffer: ByteBuffer,
+                                    commonHeaders: ByteArray) {
         buffer.put(SupportedHttpVersions.HTTP11.bytes)
         buffer.put(spaceByte)
         buffer.put(code.bytes)
         buffer.putShort(carriageReturnNewLineShort)
-
         buffer.put(commonHeaders)
-
-        writeHeaders(buffer)
-
-        buffer.putShort(carriageReturnNewLineShort)
-        content.writeBody(buffer)
-    }
-
-    private fun writeHeaders(buffer: ByteBuffer) {
         headers.forEach { (key, value) ->
             value.writeHeader(key, buffer)
         }
+        buffer.putShort(carriageReturnNewLineShort)
     }
 }
