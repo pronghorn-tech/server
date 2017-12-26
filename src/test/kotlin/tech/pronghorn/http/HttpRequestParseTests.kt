@@ -22,7 +22,7 @@ import org.mockito.Mockito.mock
 import tech.pronghorn.http.protocol.parseHttpRequest
 import tech.pronghorn.server.HttpServerConnection
 import tech.pronghorn.test.PronghornTest
-import tech.pronghorn.test.repeatCount
+import tech.pronghorn.test.lightRepeatCount
 import java.nio.ByteBuffer
 
 class HttpRequestParseTests : PronghornTest() {
@@ -55,7 +55,7 @@ class HttpRequestParseTests : PronghornTest() {
      * Tests parsing a full request in all potential partial pieces.
      * Purpose: Ensure parsing doesn't throw exceptions when parsing incomplete messages.
      */
-    @RepeatedTest(repeatCount)
+    @RepeatedTest(lightRepeatCount)
     fun progressiveParsing() {
         var x = 0
         var validResponses = 0
@@ -65,8 +65,8 @@ class HttpRequestParseTests : PronghornTest() {
             buffer.put(validRequestBytes, 0, x)
             buffer.flip()
             val parsed = parseHttpRequest(buffer, mockConnection)
-            if (parsed is HttpExchange) {
-                assertEquals(6, parsed.requestHeaders.size)
+            if (parsed is HttpRequest) {
+                assertEquals(6, parsed.headers.size)
                 validResponses += 1
             }
             x += 1
@@ -76,10 +76,10 @@ class HttpRequestParseTests : PronghornTest() {
     }
 
     /*
-     * Tests parsing with an invalid request requestMethod
+     * Tests parsing with an invalid request method
      * Purpose: Ensure the proper error type is returned in this case.
      */
-    @RepeatedTest(repeatCount)
+    @RepeatedTest(lightRepeatCount)
     fun parseInvalidMethodError() {
         val invalidMethodLines = validRequestLines.copyOf()
         invalidMethodLines[0] = invalidMethodLines[0].replace("GET", "WRONG")
@@ -93,7 +93,7 @@ class HttpRequestParseTests : PronghornTest() {
      * Tests parsing with an invalid http version
      * Purpose: Ensure the proper error type is returned in this case.
      */
-    @RepeatedTest(repeatCount)
+    @RepeatedTest(lightRepeatCount)
     fun parseInvalidVersionError() {
         val invalidMethodLines = validRequestLines.copyOf()
         invalidMethodLines[0] = invalidMethodLines[0].replace("HTTP/1.1", "HTTP/3")

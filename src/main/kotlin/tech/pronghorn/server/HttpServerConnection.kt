@@ -16,7 +16,6 @@
 
 package tech.pronghorn.server
 
-import tech.pronghorn.coroutines.core.launchCoroutine
 import tech.pronghorn.http.*
 import tech.pronghorn.http.protocol.parseHttpRequest
 import tech.pronghorn.plugins.internalQueue.InternalQueuePlugin
@@ -26,24 +25,27 @@ import tech.pronghorn.server.selectionhandlers.HttpSocketHandler
 import tech.pronghorn.util.*
 import java.io.IOException
 import java.nio.ByteBuffer
-import java.nio.channels.*
+import java.nio.channels.SelectionKey
+import java.nio.channels.SocketChannel
 
 private val genericNotFoundHandler = StaticHttpRequestHandler(HttpResponses.NotFound())
 
-open class HttpServerConnection(val worker: HttpServerWorker,
-                                val socket: SocketChannel) {
+public open class HttpServerConnection(public val worker: HttpServerWorker,
+                                       private val socket: SocketChannel) {
     private var isClosed = false
     private val maxPipelinedRequests = worker.server.config.maxPipelinedRequests
     private val reusableBufferSize = worker.server.config.reusableBufferSize
     private val maxRequestSize = worker.server.config.maxRequestSize
     private val selectionKey = worker.registerSelectionKeyHandler(socket, HttpSocketHandler(this), SelectionKey.OP_READ)
+    private var pendingResponse: HttpResponse? = null
+    private var remaining = 0L
 
     private val responsesQueue = InternalQueuePlugin.getBounded<HttpResponse>(maxPipelinedRequests)
-    private val requestsQueue = InternalQueuePlugin.getBounded<HttpExchange>(maxPipelinedRequests)
+    private val requestsQueue = InternalQueuePlugin.getBounded<HttpRequest>(maxPipelinedRequests)
 
-    var isReadQueued = false
-    var isWriteQueued = false
-    var hasPendingWrites = false
+    internal var isReadQueued = false
+    internal var isWriteQueued = false
+    private var hasPendingWrites = false
 
     private var readBuffer: ManagedByteBuffer? = null
     private var writeBuffer: ManagedByteBuffer? = null
@@ -72,12 +74,22 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         return readBuffer!!.buffer
     }
 
+    private fun getWriteBuffer(): ManagedByteBuffer {
+        val writeBuffer = this.writeBuffer
+        if (writeBuffer != null) {
+            return writeBuffer
+        }
+        val newBuffer = worker.connectionBufferPool.getBuffer()
+        this.writeBuffer = newBuffer
+        return newBuffer
+    }
+
     private fun releaseBuffers() {
         releaseReadBuffer()
         releaseWriteBuffer()
     }
 
-    fun close(reason: String? = null) {
+    public fun close(reason: String? = null) {
         isReadQueued = false
         isClosed = true
         selectionKey.cancel()
@@ -101,14 +113,14 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         return true
     }
 
-    suspend fun handleRequests() {
-        var exchange = requestsQueue.poll()
-        while (exchange != null) {
-            val handler = worker.getHandler(exchange.requestUrl.getPathBytes()) ?: genericNotFoundHandler
-            when(handler) {
+    internal suspend fun handleRequests() {
+        var request = requestsQueue.poll()
+        while (request != null) {
+            val handler = worker.getHandler(request.url.getPathBytes()) ?: genericNotFoundHandler
+            when (handler) {
                 is NonSuspendableHttpRequestHandler -> {
                     val response = try {
-                        handler.handle(exchange)
+                        handler.handle(request)
                     }
                     catch (ex: Exception) {
                         HttpResponses.InternalServerError(ex)
@@ -119,9 +131,10 @@ open class HttpServerConnection(val worker: HttpServerWorker,
                     }
                 }
                 is SuspendableHttpRequestHandler -> {
-                    launchCoroutine {
+                    // TODO("don't allow pipelining here")
+                    worker.launchWorkerCoroutine {
                         val response = try {
-                            handler.handle(exchange)
+                            handler.handle(request)
                         }
                         catch (ex: Exception) {
                             HttpResponses.InternalServerError(ex)
@@ -133,11 +146,11 @@ open class HttpServerConnection(val worker: HttpServerWorker,
                     }
                 }
             }
-            exchange = requestsQueue.poll()
+            request = requestsQueue.poll()
         }
     }
 
-    suspend fun readRequests() {
+    internal suspend fun readRequests() {
         val bytesRead = readIntoBuffer()
 
         if (bytesRead < 0) {
@@ -179,14 +192,14 @@ open class HttpServerConnection(val worker: HttpServerWorker,
             var preParsePosition = buffer.position()
             var request = parseHttpRequest(buffer, this)
             var wasEmpty = requestsQueue.isEmpty()
-            while (request is HttpExchange) {
+            while (request is HttpRequest) {
                 if (!requestsQueue.offer(request)) {
                     close("Maximum pipelining threshold exceeded, pipelining limit: $maxPipelinedRequests")
                 }
 
-                if (wasEmpty){
+                if (wasEmpty) {
                     wasEmpty = false
-                    if(!requestsReadyWriter.offer(this)){
+                    if (!requestsReadyWriter.offer(this)) {
                         requestsReadyWriter.addAsync(this)
                         wasEmpty = requestsQueue.isEmpty()
                     }
@@ -210,7 +223,7 @@ open class HttpServerConnection(val worker: HttpServerWorker,
                 InvalidVersionParseError -> close("Unable to parse HTTP request version.")
                 InvalidMethodParseError -> close("Unable to parse HTTP request method.")
                 InvalidUrlParseError -> close("Unable to parse HTTP request url.")
-                is HttpExchange -> {
+                is HttpRequest -> {
                 } // no-op
             }
         }
@@ -220,17 +233,17 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         }
     }
 
-    private fun flushAndReleaseOrWait(managedBuffer: ManagedByteBuffer?): Boolean {
+    private fun flushOrWait(managedBuffer: ManagedByteBuffer?,
+                            release: Boolean = false): Boolean {
         if (managedBuffer == null) {
             return true
         }
 
-        if (!hasPendingWrites) {
-            managedBuffer.buffer.flip()
-        }
+        val buffer = managedBuffer.buffer
+        buffer.flip()
 
         try {
-            val wrote = socket.write(managedBuffer.buffer)
+            val wrote = socket.write(buffer)
             if (wrote < 0) {
                 close()
             }
@@ -239,11 +252,17 @@ open class HttpServerConnection(val worker: HttpServerWorker,
             close()
         }
 
-        if (!managedBuffer.buffer.hasRemaining()) {
-            releaseWriteBuffer()
+        if (!buffer.hasRemaining()) {
+            if (release) {
+                releaseWriteBuffer()
+            }
+            else {
+                buffer.clear()
+            }
             return true
         }
         else {
+            buffer.compact()
             this.writeBuffer = managedBuffer
             if (!hasPendingWrites) {
                 hasPendingWrites = true
@@ -253,59 +272,104 @@ open class HttpServerConnection(val worker: HttpServerWorker,
         }
     }
 
-    tailrec fun writeResponses() {
-        val nextResponse = responsesQueue.peek()
-        if (nextResponse == null) {
-            flushAndReleaseOrWait(this.writeBuffer)
-        }
-        else {
-            val nextResponseSize = nextResponse.getOutputSize(worker.commonHeaderSize)
-            val currentManagedBuffer = this.writeBuffer
+    private fun getResponse(): HttpResponse? {
+        remaining = 0
+        return responsesQueue.poll()
+    }
 
-            if (currentManagedBuffer == null) {
-                val newManagedBuffer = if (nextResponseSize < reusableBufferSize) {
-                    worker.connectionBufferPool.getBuffer()
-                }
-                else {
-                    worker.oneUseByteBufferAllocator.getBuffer(nextResponseSize)
-                }
+    private tailrec fun writeContent(content: ResponseContent,
+                                     managed: ManagedByteBuffer? = null): Boolean {
+        when (content) {
+            is BufferedResponseContent -> {
+                val staticManaged = managed ?: getWriteBuffer()
+                val buffer = staticManaged.buffer
 
-                this.writeBuffer = newManagedBuffer
-                responsesQueue.remove().writeToBuffer(newManagedBuffer.buffer, worker.getCommonHeaders())
-                writeResponses()
-            }
-            else {
-                val currentBuffer = currentManagedBuffer.buffer
-
-                if (hasPendingWrites) {
-                    if (nextResponseSize <= currentBuffer.capacity() - currentBuffer.limit()) {
-                        currentBuffer.position(currentBuffer.limit())
-                        currentBuffer.limit(currentBuffer.capacity())
-
-                        responsesQueue.remove().writeToBuffer(currentBuffer, worker.getCommonHeaders())
-                        writeResponses()
-                    }
-                    else if (nextResponseSize <= currentBuffer.position() + (currentBuffer.capacity() - currentBuffer.limit())) {
-                        currentBuffer.compact()
-
-                        responsesQueue.remove().writeToBuffer(currentBuffer, worker.getCommonHeaders())
-                        writeResponses()
+                if (!buffer.hasRemaining()) {
+                    if (flushOrWait(staticManaged)) {
+                        return writeContent(content, this.writeBuffer)
                     }
                     else {
-                        if (flushAndReleaseOrWait(currentManagedBuffer)) {
-                            writeResponses()
-                        }
+                        return false
                     }
                 }
-                else if (nextResponseSize <= currentBuffer.remaining()) {
-                    responsesQueue.remove().writeToBuffer(currentBuffer, worker.getCommonHeaders())
+
+                remaining = content.writeToBuffer(buffer, remaining)
+                if (remaining > 0) {
+                    if (flushOrWait(staticManaged)) {
+                        return writeContent(content, this.writeBuffer)
+                    }
+                    else {
+                        return false
+                    }
+                }
+                else {
+                    pendingResponse = getResponse()
+                    return true
+                }
+            }
+            is DirectToSocketResponseContent -> {
+                if (!flushOrWait(this.writeBuffer, true)) {
+                    return false
+                }
+
+                remaining = content.writeToSocket(socket, remaining)
+                if (remaining > 0) {
+                    if (!hasPendingWrites) {
+                        hasPendingWrites = true
+                        selectionKey.addInterestOps(SelectionKey.OP_WRITE)
+                    }
+                    return false
+                }
+                else {
+                    pendingResponse = getResponse()
+                    return true
+                }
+            }
+        }
+    }
+
+    internal tailrec fun writeResponses() {
+        val nextResponse = pendingResponse ?: getResponse()
+        if (nextResponse == null) {
+            if (flushOrWait(this.writeBuffer, true) && hasPendingWrites) {
+                hasPendingWrites = false
+                selectionKey.removeInterestOps(SelectionKey.OP_WRITE)
+            }
+            return
+        }
+
+        if (remaining == 0L) {
+            val headerSize = nextResponse.getStatusAndHeaderSize(worker.commonHeaderSize)
+            val managedBuffer = getWriteBuffer()
+            val buffer = managedBuffer.buffer
+
+            if (buffer.remaining() < headerSize) {
+                if (headerSize > buffer.capacity()) {
+                    TODO("Might want to enforce this earlier.")
+                }
+
+                if (flushOrWait(managedBuffer)) {
+                    writeResponses()
+                }
+            }
+            else {
+                nextResponse.writeHeadersToBuffer(buffer, worker.getCommonHeaders())
+                remaining = nextResponse.content.size
+                if (writeContent(nextResponse.content, managedBuffer)) {
                     writeResponses()
                 }
                 else {
-                    if (flushAndReleaseOrWait(currentManagedBuffer)) {
-                        writeResponses()
-                    }
+                    pendingResponse = nextResponse
                 }
+            }
+        }
+        else {
+            if (writeContent(nextResponse.content, this.writeBuffer)) {
+                if (hasPendingWrites) {
+                    hasPendingWrites = false
+                    selectionKey.removeInterestOps(SelectionKey.OP_WRITE)
+                }
+                writeResponses()
             }
         }
     }
