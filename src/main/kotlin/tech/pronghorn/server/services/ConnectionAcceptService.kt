@@ -16,7 +16,7 @@
 
 package tech.pronghorn.server.services
 
-import tech.pronghorn.coroutines.service.InternalSleepableService
+import tech.pronghorn.coroutines.services.InternalSleepableService
 import tech.pronghorn.server.*
 import tech.pronghorn.server.selectionhandlers.AcceptHandler
 import java.io.IOException
@@ -25,49 +25,51 @@ import java.nio.channels.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 
-sealed class SocketManagerService : InternalSleepableService() {
-    abstract protected val serverSocket: ServerSocketChannel
+internal sealed class SocketManagerService : InternalSleepableService() {
+    protected abstract val serverSocket: ServerSocketChannel
 
     override fun onStart() {
         worker.registerSelectionKeyHandler(serverSocket, AcceptHandler(this), SelectionKey.OP_ACCEPT)
     }
 
-    suspend override fun run() {
-        while (isRunning) {
+    override suspend fun run() {
+        while (isRunning()) {
             accept()
             sleepAsync()
         }
     }
 
-    abstract fun accept()
+    protected abstract suspend fun accept()
 }
 
-class SingleSocketManager(val address: InetSocketAddress,
-                          val listenBacklog: Int,
-                          val distributionStrategy: ConnectionDistributionStrategy) {
+internal class SingleSocketManager(internal val address: InetSocketAddress,
+                                   internal val listenBacklog: Int,
+                                   internal val distributionStrategy: ConnectionDistributionStrategy) {
     val serverSocket = ServerSocketChannel.open()
+
     init {
         serverSocket.configureBlocking(false)
     }
+
     private val hasStarted = AtomicBoolean(false)
     private val hasShutdown = AtomicBoolean(false)
-    val acceptLock = ReentrantLock()
+    internal val acceptLock = ReentrantLock()
 
-    fun start(){
+    internal fun start() {
         if (hasStarted.compareAndSet(false, true)) {
             serverSocket.bind(address, listenBacklog)
         }
     }
 
-    fun shutdown() {
+    internal fun shutdown() {
         if (hasShutdown.compareAndSet(false, true)) {
             serverSocket.close()
         }
     }
 }
 
-class SingleSocketManagerService(override val worker: HttpServerWorker,
-                                 val manager: SingleSocketManager) : SocketManagerService() {
+internal class SingleSocketManagerService(override val worker: HttpServerWorker,
+                                          internal val manager: SingleSocketManager) : SocketManagerService() {
     override val serverSocket: ServerSocketChannel = manager.serverSocket
     private val config = worker.server.config
 
@@ -81,7 +83,7 @@ class SingleSocketManagerService(override val worker: HttpServerWorker,
         manager.shutdown()
     }
 
-    override fun accept() {
+    override suspend fun accept() {
         if (serverSocket.socket().isBound && manager.acceptLock.tryLock()) {
             try {
                 logger.debug { "Accepting connections..." }
@@ -110,7 +112,7 @@ class SingleSocketManagerService(override val worker: HttpServerWorker,
     }
 }
 
-class MultiSocketManagerService(override val worker: HttpServerWorker) : SocketManagerService() {
+internal class MultiSocketManagerService(override val worker: HttpServerWorker) : SocketManagerService() {
     override val serverSocket: ServerSocketChannel = ServerSocketChannel.open()
 
     init {
@@ -130,21 +132,28 @@ class MultiSocketManagerService(override val worker: HttpServerWorker) : SocketM
         serverSocket.close()
     }
 
-    override fun accept() {
+    override suspend fun accept() {
         var acceptedCount = 0
-        var acceptedSocket = serverSocket.accept()
-        while (acceptedSocket != null) {
-            acceptedCount += 1
-            acceptedSocket.configureBlocking(false)
-            acceptedSocket.socket().tcpNoDelay = true
-            acceptedSocket.socket().keepAlive = true
+        try {
+            var acceptedSocket = serverSocket.accept()
+            while (acceptedSocket != null) {
+                acceptedCount += 1
+                acceptedSocket.configureBlocking(false)
+                acceptedSocket.socket().tcpNoDelay = true
+                acceptedSocket.socket().keepAlive = true
+                acceptedSocket.socket().receiveBufferSize = config.socketReadBufferSize
+                acceptedSocket.socket().sendBufferSize = config.socketWriteBufferSize
 
-            val connection = HttpServerConnection(worker, acceptedSocket)
-            worker.addConnection(connection)
-            if (acceptedCount >= config.acceptGrouping) {
-                break
+                val connection = HttpServerConnection(worker, acceptedSocket)
+                worker.addConnection(connection)
+                if (acceptedCount >= config.acceptGrouping) {
+                    break
+                }
+                acceptedSocket = serverSocket.accept()
             }
-            acceptedSocket = serverSocket.accept()
+        }
+        catch (ex: IOException) {
+            // no-op
         }
     }
 }

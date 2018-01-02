@@ -22,18 +22,35 @@ import tech.pronghorn.util.kibibytes
 import tech.pronghorn.util.mebibytes
 import java.net.InetSocketAddress
 import java.nio.channels.ServerSocketChannel
+import java.nio.channels.SocketChannel
 
-object HttpServerConfigDefaultValues {
-    val workerCount = Runtime.getRuntime().availableProcessors()
-    const val serverName = "Pronghorn"
-    const val sendServerHeader = true
-    const val sendDateHeader = true
-    val reusePort = supportsReusePort()
-    const val listenBacklog = 128
-    const val maxPipelinedRequests = 64
-    val maxRequestSize = mebibytes(1)
-    val reusableBufferSize = kibibytes(64)
-    val useDirectByteBuffers = true
+public object HttpServerConfigDefaultValues {
+    public val workerCount = Runtime.getRuntime().availableProcessors()
+    public const val serverName = "Pronghorn"
+    public const val sendServerHeader = true
+    public const val sendDateHeader = true
+    public val reusePort = supportsReusePort()
+    public const val listenBacklog = 128
+    public const val maxPipelinedRequests = 64
+    public val maxRequestSize = mebibytes(1)
+    public val reusableBufferSize = kibibytes(64)
+    public val socketReadBufferSize = getDefaultSocketReadBufferSize()
+    public val socketWriteBufferSize = getDefaultSocketWriteBufferSize()
+    public val useDirectByteBuffers = true
+
+    private fun getDefaultSocketReadBufferSize(): Int {
+        val tmpSocket = SocketChannel.open()
+        val readBufferSize = tmpSocket.socket().receiveBufferSize
+        tmpSocket.close()
+        return readBufferSize
+    }
+
+    private fun getDefaultSocketWriteBufferSize(): Int {
+        val tmpSocket = SocketChannel.open()
+        val writeBufferSize = tmpSocket.socket().sendBufferSize
+        tmpSocket.close()
+        return writeBufferSize
+    }
 
     private fun supportsReusePort(): Boolean {
         val tmpSocket = ServerSocketChannel.open()
@@ -51,6 +68,8 @@ object HttpServerConfigDefaultValues {
  * @param sendDateHeader : If true, the Date header is automatically sent with each response
  * @param serverName : The value to send in the Server response header if sendServerHeader is true
  * @param reusableBufferSize : The size of pooled read/write buffers, should be at least as large as the average expected request
+ * @param socketReadBufferSize : The size of read buffers for client socket connections, very large or small values may be ignored by the underlying os implementation
+ * @param socketWriteBufferSize : The size of write buffers for client socket connections, very large or small values may be ignored by the underlying os implementation
  * @param reusePort : If true, the SO_REUSEPORT socket option is used and each worker uses a dedicated socket
  * @param listenBacklog : The value for the accept queue for the server socket
  * @param acceptGrouping : How many connections should be accepted in a batch, usually equal to the listen backlog
@@ -58,27 +77,43 @@ object HttpServerConfigDefaultValues {
  * @param maxRequestSize : The maximum acceptable size of a single http request
  * @param useDirectByteBuffers : Whether socket read/write buffers should be direct ByteBuffers
  */
-class HttpServerConfig(val address: InetSocketAddress,
-                       workerCount: Int = HttpServerConfigDefaultValues.workerCount,
-                       val sendServerHeader: Boolean = HttpServerConfigDefaultValues.sendServerHeader,
-                       val sendDateHeader: Boolean = HttpServerConfigDefaultValues.sendDateHeader,
-                       serverName: String = HttpServerConfigDefaultValues.serverName,
-                       reusableBufferSize: Int = HttpServerConfigDefaultValues.reusableBufferSize,
-                       reusePort: Boolean = HttpServerConfigDefaultValues.reusePort,
-                       listenBacklog: Int = HttpServerConfigDefaultValues.listenBacklog,
-                       acceptGrouping: Int = listenBacklog,
-                       maxPipelinedRequests: Int = HttpServerConfigDefaultValues.maxPipelinedRequests,
-                       maxRequestSize: Int = HttpServerConfigDefaultValues.maxRequestSize,
-                       val useDirectByteBuffers: Boolean = HttpServerConfigDefaultValues.useDirectByteBuffers) {
+public open class HttpServerConfig(val address: InetSocketAddress,
+                                   workerCount: Int = HttpServerConfigDefaultValues.workerCount,
+                                   val sendServerHeader: Boolean = HttpServerConfigDefaultValues.sendServerHeader,
+                                   val sendDateHeader: Boolean = HttpServerConfigDefaultValues.sendDateHeader,
+                                   serverName: String = HttpServerConfigDefaultValues.serverName,
+                                   reusableBufferSize: Int = HttpServerConfigDefaultValues.reusableBufferSize,
+                                   socketReadBufferSize: Int = HttpServerConfigDefaultValues.socketReadBufferSize,
+                                   socketWriteBufferSize: Int = HttpServerConfigDefaultValues.socketWriteBufferSize,
+                                   reusePort: Boolean = HttpServerConfigDefaultValues.reusePort,
+                                   listenBacklog: Int = HttpServerConfigDefaultValues.listenBacklog,
+                                   acceptGrouping: Int = listenBacklog,
+                                   maxPipelinedRequests: Int = HttpServerConfigDefaultValues.maxPipelinedRequests,
+                                   maxRequestSize: Int = HttpServerConfigDefaultValues.maxRequestSize,
+                                   val useDirectByteBuffers: Boolean = HttpServerConfigDefaultValues.useDirectByteBuffers) {
     private val logger = LoggingPlugin.get(javaClass)
-    val workerCount = validateWorkerCount(workerCount)
-    val serverName = validateServerName(serverName)
-    val reusableBufferSize = validateReusableBufferSize(reusableBufferSize)
-    val listenBacklog = validateListenBacklog(listenBacklog)
-    val acceptGrouping = validateAcceptGrouping(acceptGrouping)
-    val reusePort = validateReusePort(reusePort)
-    val maxPipelinedRequests = validateMaxPipelinedRequests(maxPipelinedRequests)
-    val maxRequestSize = validateMaxRequestSize(maxRequestSize)
+    public val workerCount = validateWorkerCount(workerCount)
+    public val serverName = validateServerName(serverName)
+    public val reusableBufferSize = validateIsPositive("reusableBufferSize", reusableBufferSize, HttpServerConfigDefaultValues.reusableBufferSize)
+    public val socketReadBufferSize = validateIsPositive("socketReadBufferSize", socketReadBufferSize, HttpServerConfigDefaultValues.socketReadBufferSize)
+    public val socketWriteBufferSize = validateIsPositive("socketWriteBufferSize", socketWriteBufferSize, HttpServerConfigDefaultValues.socketWriteBufferSize)
+    public val listenBacklog = validateIsPositive("listenBacklog", listenBacklog, HttpServerConfigDefaultValues.listenBacklog)
+    public val acceptGrouping = validateIsPositive("acceptGrouping", acceptGrouping, HttpServerConfigDefaultValues.listenBacklog)
+    public val reusePort = validateReusePort(reusePort)
+    public val maxPipelinedRequests = validateMaxPipelinedRequests(maxPipelinedRequests)
+    public val maxRequestSize = validateIsPositive("maxRequestSize", maxRequestSize, HttpServerConfigDefaultValues.maxRequestSize)
+
+    private fun validateIsPositive(name: String,
+                                   value: Int,
+                                   default: Int): Int {
+        if (value < 1) {
+            logger.warn { "$name set to ($value), but must be greater than zero. Using default: ($default)" }
+            return default
+        }
+        else {
+            return value
+        }
+    }
 
     override fun toString(): String {
         return "HttpServerConfig: " +
@@ -123,42 +158,6 @@ class HttpServerConfig(val address: InetSocketAddress,
         return value
     }
 
-    private fun validateReusableBufferSize(value: Int): Int {
-        if (value < 1) {
-            logger.warn { "reusableBufferSize set to invalid value ($value), using default: (${HttpServerConfigDefaultValues.reusableBufferSize})" }
-            return HttpServerConfigDefaultValues.reusableBufferSize
-        }
-        else {
-            return value
-        }
-    }
-
-    private fun validateListenBacklog(value: Int): Int {
-        if (value < 1) {
-            logger.warn {
-                "listenBacklog value ($value) must be greater than zero, " +
-                        "using default value(${HttpServerConfigDefaultValues.listenBacklog})"
-            }
-            return HttpServerConfigDefaultValues.listenBacklog
-        }
-        else {
-            return value
-        }
-    }
-
-    private fun validateAcceptGrouping(value: Int): Int {
-        if (value < 1) {
-            logger.warn {
-                "acceptGrouping value ($value) must be greater than zero, " +
-                        "using listenBacklog value ($listenBacklog)"
-            }
-            return listenBacklog
-        }
-        else {
-            return value
-        }
-    }
-
     private fun validateReusePort(value: Boolean): Boolean {
         val osName = System.getProperty("os.name") ?: "Unknown"
         if (value && !osName.contains("Linux")) {
@@ -175,19 +174,6 @@ class HttpServerConfig(val address: InetSocketAddress,
                         "To disable pipelining, use a value of 1. Using default value (${HttpServerConfigDefaultValues.maxPipelinedRequests})"
             }
             return HttpServerConfigDefaultValues.maxPipelinedRequests
-        }
-        else {
-            return value
-        }
-    }
-
-    private fun validateMaxRequestSize(value: Int): Int {
-        if (value < 1) {
-            logger.warn {
-                "maxRequestSize value($value) must be greater than zero. " +
-                        "Using default value (${HttpServerConfigDefaultValues.maxRequestSize})"
-            }
-            return HttpServerConfigDefaultValues.maxRequestSize
         }
         else {
             return value
