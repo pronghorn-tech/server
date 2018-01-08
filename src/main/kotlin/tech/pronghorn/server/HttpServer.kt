@@ -22,9 +22,12 @@ import tech.pronghorn.server.config.HttpServerConfig
 import tech.pronghorn.server.requesthandlers.HttpRequestHandler
 import tech.pronghorn.server.services.*
 import java.net.InetSocketAddress
+import java.nio.file.Path
 
-class HttpServer(val config: HttpServerConfig) : CoroutineApplication<HttpServerWorker>() {
-    override val workers = spawnWorkers(config.workerCount)
+
+public class HttpServer(public val config: HttpServerConfig) : CoroutineApplication<HttpServerWorker>() {
+    override val workers: Set<HttpServerWorker> = spawnWorkers(config.workerCount)
+    private val fileHostManager = FileHostManager(this)
 
     private fun spawnWorkers(workerCount: Int): Set<HttpServerWorker> {
         val workerSet = ConcurrentSetPlugin.get<HttpServerWorker>()
@@ -40,34 +43,61 @@ class HttpServer(val config: HttpServerConfig) : CoroutineApplication<HttpServer
                 port: Int) : this(HttpServerConfig(InetSocketAddress(host, port)))
 
     override fun onStart() {
-        if(config.reusePort){
-            addService { worker -> MultiSocketManagerService(worker) }
+        if (config.reusePort) {
+            for (worker in workers) {
+                worker.addService(MultiSocketManagerService(worker))
+            }
         }
         else {
             val socketManager = SingleSocketManager(config.address, config.listenBacklog, RoundRobinConnectionDistributionStrategy(workers))
-            addService { worker -> SingleSocketManagerService(worker, socketManager) }
+            for (worker in workers) {
+                worker.addService(SingleSocketManagerService(worker, socketManager))
+            }
         }
-
+        fileHostManager.start()
         logger.info { "Starting server with configuration: $config" }
     }
 
     override fun onShutdown() {
+        fileHostManager.interrupt()
         logger.info { "Shutting down server at ${config.address}." }
     }
 
-    fun registerUrlHandlerGenerators(handlers: Map<String, (HttpServerWorker) -> HttpRequestHandler>) {
+    public fun registerUrlHandlerGenerators(handlers: Map<String, (HttpServerWorker) -> HttpRequestHandler>) {
         workers.forEach { worker ->
-            worker.sendInterWorkerMessage(RegisterUrlHandlersMessage(handlers))
+            worker.executeInWorker {
+                worker.addUrlHandlers(handlers)
+            }
         }
     }
 
-    fun registerUrlHandlerGenerator(url: String,
-                                    handlerGenerator: (HttpServerWorker) -> HttpRequestHandler) {
+    public fun registerUrlHandlerGenerator(url: String,
+                                           handlerGenerator: (HttpServerWorker) -> HttpRequestHandler) {
         registerUrlHandlerGenerators(mapOf(url to handlerGenerator))
     }
 
-    fun registerUrlHandler(url: String,
-                           handler: HttpRequestHandler) {
+    public fun registerUrlHandler(url: String,
+                                  handler: HttpRequestHandler) {
         registerUrlHandlerGenerator(url, { handler })
+    }
+
+    public fun registerUrlHandlers(handlers: Map<String, HttpRequestHandler>) {
+        val generators = handlers.mapValues { entry -> { _: HttpServerWorker -> entry.value } }
+        registerUrlHandlerGenerators(generators)
+    }
+
+    public fun deregisterUrlHandlers(urls: Collection<String>) {
+        workers.forEach { worker ->
+            worker.executeInWorker {
+                worker.removeUrlHandlers(urls)
+            }
+        }
+    }
+
+    public fun deregisterUrlHandler(url: String) = deregisterUrlHandlers(listOf(url))
+
+    public fun mountDirectory(path: Path,
+                              mountLocation: String = "/") {
+        fileHostManager.mountDirectory(path, mountLocation)
     }
 }
