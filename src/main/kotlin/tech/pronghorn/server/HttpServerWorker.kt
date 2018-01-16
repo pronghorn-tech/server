@@ -17,7 +17,7 @@
 package tech.pronghorn.server
 
 import tech.pronghorn.coroutines.core.CoroutineWorker
-import tech.pronghorn.coroutines.service.Service
+import tech.pronghorn.coroutines.core.Service
 import tech.pronghorn.http.HttpResponseHeaderValuePair
 import tech.pronghorn.http.protocol.StandardHttpResponseHeaders
 import tech.pronghorn.plugins.concurrentSet.ConcurrentSetPlugin
@@ -35,19 +35,19 @@ import java.time.format.DateTimeFormatter
 import java.util.Arrays
 import java.util.HashMap
 
-class URLHandlerMapping(val url: ByteArray,
-                        val handler: HttpRequestHandler) : ByteBacked {
+private class URLHandlerMapping(url: ByteArray,
+                                internal val handler: HttpRequestHandler) : ByteBacked {
     override val bytes = url
 }
 
-class HttpServerWorker(val server: HttpServer,
-                       private val config: HttpServerConfig) : CoroutineWorker() {
+public open class HttpServerWorker(public val server: HttpServer,
+                                   private val config: HttpServerConfig) : CoroutineWorker() {
     private val connections = ConcurrentSetPlugin.get<HttpServerConnection>()
     private val connectionReadService = ConnectionReadService(this)
     private val connectionCreationService = ServerConnectionCreationService(this)
     private val httpRequestHandlerService = HttpRequestHandlerService(this)
     private val responseWriterService = ResponseWriterService(this)
-    private val handlers = HashMap<Int, URLHandlerMapping>()
+    private val handlers = HashMap<String, URLHandlerMapping>()
     private val gmt = ZoneId.of("GMT")
     private val commonHeaderCache = calculateCommonHeaderCache()
     private var latestDate = System.currentTimeMillis() / 1000
@@ -59,7 +59,7 @@ class HttpServerWorker(val server: HttpServer,
     internal val responseWriterServiceQueueWriter = responseWriterService.getQueueWriter()
     internal val httpRequestHandlerServiceQueueWriter = httpRequestHandlerService.getQueueWriter()
 
-    override val services: List<Service> = listOf(
+    override val initialServices: List<Service> = listOf(
             connectionReadService,
             connectionCreationService,
             httpRequestHandlerService,
@@ -75,7 +75,7 @@ class HttpServerWorker(val server: HttpServer,
     }
 
     override fun onShutdown() {
-        if(connections.size > 0) {
+        if (connections.size > 0) {
             logger.info { "Worker closing ${connections.size} connections" }
         }
 
@@ -120,24 +120,23 @@ class HttpServerWorker(val server: HttpServer,
         return commonHeaderCache
     }
 
-    fun getHandler(urlBytes: ByteArray): HttpRequestHandler? = handlerFinder.find(urlBytes)?.handler
+    internal fun getHandler(urlBytes: ByteArray): HttpRequestHandler? = handlerFinder.find(urlBytes)?.handler
 
-    private fun addUrlHandlers(newHandlers: Map<String, (HttpServerWorker) -> HttpRequestHandler>) {
+    internal fun addUrlHandlers(newHandlers: Map<String, (HttpServerWorker) -> HttpRequestHandler>) {
         newHandlers.forEach { (url, handlerGenerator) ->
             val urlBytes = url.toByteArray(Charsets.US_ASCII)
             val handler = handlerGenerator(this)
-            handlers.put(Arrays.hashCode(urlBytes), URLHandlerMapping(urlBytes, handler))
+            handlers.put(url, URLHandlerMapping(urlBytes, handler))
         }
 
         handlerFinder = FinderGenerator.generateFinder(handlers.values.toTypedArray())
     }
 
-    override fun handleMessage(message: Any): Boolean {
-        if (message is RegisterUrlHandlersMessage) {
-            addUrlHandlers(message.handlers)
-            return true
+    internal fun removeUrlHandlers(urls: Collection<String>) {
+        urls.forEach { url ->
+            handlers.remove(url)
         }
 
-        return false
+        handlerFinder = FinderGenerator.generateFinder(handlers.values.toTypedArray())
     }
 }
