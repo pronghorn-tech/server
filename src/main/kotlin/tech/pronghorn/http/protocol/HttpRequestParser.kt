@@ -92,6 +92,7 @@ public fun parseHttpRequest(buffer: ByteBuffer,
 
     val headers = LinkedHashMap<HttpRequestHeader, ByteArray>(defaultHeaderMapSize)
 
+    @Suppress("VARIABLE_WITH_REDUNDANT_INITIALIZER")
     var headersEnd = -1
 
     var contentLength = 0
