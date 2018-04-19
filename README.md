@@ -15,7 +15,7 @@ fun main(args: Array<String>) {
     val helloWorldHandler = StaticHttpRequestHandler(helloWorldResponse)
 
     val server = HttpServer("localhost", 8080)
-    server.registerUrlHandler("/plaintext", helloWorldHandler)
+    server.registerUrlHandler("/hello", helloWorldHandler)
     server.start()
 }
 ```
