@@ -27,7 +27,7 @@ import java.nio.file.Path
 
 public class HttpServer(public val config: HttpServerConfig) : CoroutineApplication<HttpServerWorker>() {
     override val workers: Set<HttpServerWorker> = spawnWorkers(config.workerCount)
-    private val fileHostManager = FileHostManager(this)
+//    private val fileHostManager = FileHostManager(this)
 
     private fun spawnWorkers(workerCount: Int): Set<HttpServerWorker> {
         val workerSet = ConcurrentSetPlugin.get<HttpServerWorker>()
@@ -54,12 +54,12 @@ public class HttpServer(public val config: HttpServerConfig) : CoroutineApplicat
                 worker.addService(SingleSocketManagerService(worker, socketManager))
             }
         }
-        fileHostManager.start()
+//        fileHostManager.start()
         logger.info { "Starting server with configuration: $config" }
     }
 
     override fun onShutdown() {
-        fileHostManager.interrupt()
+//        fileHostManager.interrupt()
         logger.info { "Shutting down server at ${config.address}." }
     }
 
@@ -96,8 +96,8 @@ public class HttpServer(public val config: HttpServerConfig) : CoroutineApplicat
 
     public fun deregisterUrlHandler(url: String) = deregisterUrlHandlers(listOf(url))
 
-    public fun mountDirectory(path: Path,
-                              mountLocation: String = "/") {
-        fileHostManager.mountDirectory(path, mountLocation)
-    }
+//    public fun mountDirectory(path: Path,
+//                              mountLocation: String = "/") {
+//        fileHostManager.mountDirectory(path, mountLocation)
+//    }
 }
