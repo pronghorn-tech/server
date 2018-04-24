@@ -25,9 +25,9 @@ public sealed class HttpRequestHandler {
 }
 
 public abstract class SuspendableHttpRequestHandler: HttpRequestHandler() {
-    internal abstract suspend fun handle(request: HttpRequest): HttpResponse
+    abstract suspend fun handle(request: HttpRequest): HttpResponse
 }
 
 public abstract class NonSuspendableHttpRequestHandler: HttpRequestHandler() {
-    internal abstract fun handle(request: HttpRequest): HttpResponse
+    abstract fun handle(request: HttpRequest): HttpResponse
 }
