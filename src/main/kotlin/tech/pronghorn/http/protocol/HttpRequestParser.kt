@@ -165,7 +165,7 @@ public fun parseHttpRequest(buffer: ByteBuffer,
             var v = 0
             while (v < headerValue.size) {
                 contentLength *= 10
-                contentLength += headerValue[v]
+                contentLength += headerValue[v] - 48
                 v += 1
             }
         }
